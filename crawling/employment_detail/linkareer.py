@@ -32,22 +32,7 @@ if __name__ == "__main__":
     url = f'https://linkareer.com/list/recruit?filterBy_activityTypeID=5&filterBy_categoryIDs={category_code}&filterBy_status=OPEN&orderBy_direction=DESC&orderBy_field=RECENT&page=1'
     driver.get(url)
     driver.implicitly_wait(10)
-
-    """
-    id : 채용공고 id
-    category : 직무 대분류 (현재는 IT/인터넷만)
-    sub_category : 직무 소분류
-    company_name : 회사명
-    work_location: 근무지역 (상세)
-    title: 공고 글 제목
-    start_time : 시작일
-    end_time : 종료일
-    detail_type : 상세정보 자료형
-    detail : 상세정보 데이터 
-    applyUrl: 채용 url
-    is_remote_work : 원격근무가능
-    experience : 근무 경험
-    """
+    
     recruits_list = []
 
     # 현재 크롤링 시작 시간
@@ -72,19 +57,27 @@ if __name__ == "__main__":
         for item in recruits_dict['data']['activities']['nodes']:
 
             recruits_list.append({
-                'id': item['id'],
-                'category' : 'IT/인터넷',
-                'sub_category' : " [SEP] ".join([i['name'] for i in item['categories']]),
-                'company_name': item['organizationName'],
-                'work_location' : item['addresses'][0]['address'],
-                'title': item['title'],
-                'start_time': None,
-                'end_time': None,
-                'detail_type': 'hybrid',
-                'detail': None,
-                'applyUrl': None,
-                'is_remote_work' : item['addresses'][0]['isPossibleWorkingFromHome'],
-                'experience' : item['jobTypes'][0]
+                "채용사이트명": "링커리어",
+                "채용사이트_공고id": item['id'],
+                "직무_대분류": "IT/인터넷", # [합의 필요] 서연's 코드 : 0
+                "직무_소분류": " [SEP] ".join([i['name'] for i in item['categories']]),
+                "경력사항": item['jobTypes'], # 근무경험 -> 경력사항 통일. [논의 필요] 경험이 여러개인 경우가 존재하는데, 이 경우 어떻게 처리? # list 형태임 ["NEW", "EXPERIENCED"] 
+
+                "회사명": item['organizationName'],
+                "근무지역(회사주소)": item['addresses'][0]['address'], # [논의 필요] 주소가 여러개 담기나봄.. 각 원소의 ['address']에 총 주소값
+                "회사로고이미지": item['logoImage']['url'],
+                "회사복지": {
+                  "is_remote_work": item['addresses'][0]['isPossibleWorkingFromHome'] # [논의 필요] .md 파일에는 회사 복지 사항을 공고 상세에 넣는 걸로 표기했는데, 이렇게 따로 빼는 것도 좋을듯
+                }, 
+                
+                "공고제목": item['title'],
+                "공고본문_타입": "hybrid",
+                "공고본문_raw": None,
+                "공고출처url": None,
+
+                "모집시작일": None,
+                "모집마감일": None,
+                "공고게시일": None
             })
 
         # 다음 버튼 찾기
@@ -115,7 +108,7 @@ if __name__ == "__main__":
 
     remove_idx = []
     for idx, item in enumerate(recruits_list):
-        driver.get(f'https://linkareer.com/activity/{item["id"]}')
+        driver.get(f'https://linkareer.com/activity/{item["채용사이트_공고id"]}')
 
         req = driver.filter_network_log(pat='gqlScreenActivityDetail&variables', timeout=TRFIC_PAUSE_TIME, reset=True)
         detail_data = driver.parse_request(req)
@@ -137,13 +130,17 @@ if __name__ == "__main__":
             
             end_millisec = detail_data['data']['activity']['recruitCloseAt']
             end_time = datetime.fromtimestamp(end_millisec / 1000, timezone.utc).strftime("%Y%m%d")
-
-            item['start_time'] = start_time
-            item['end_time'] = end_time
             
-            item['detail'] = detail_data['data']['activity']['detailText']['text']
-            item['applyUrl'] = detail_data['data']['activity']['applyDetail']
-
+            created_millisec = detail_data['data']['activity']['createdAt']
+            created_time = datetime.fromtimestamp(created_millisec / 1000, timezone.utc).strftime("%Y%m%d")
+            
+            item['모집시작일'] = start_time
+            item['모집마감일'] = end_time
+            item['공고게시일'] = created_time
+            
+            item['공고본문_raw'] = detail_data['data']['activity']['detailText']['text']
+            item['공고출처url'] = detail_data['data']['activity']['applyDetail']
+     
             time.sleep(PAUSE_TIME)
         else:
             remove_idx.append(idx)
