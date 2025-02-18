@@ -6,6 +6,9 @@ from selenium.webdriver.common.by import By
 
 from itertools import chain
 import time
+from datetime import datetime, timedelta
+import pandas as pd
+import sys, os
 
 PAUSE_TIME = 3  # 대기 시간
 TRFIC_PAUSE_TIME = 10 # 트래픽 캡처 대기 시간
@@ -32,13 +35,26 @@ if __name__ == "__main__":
 
     """
     id : 채용공고 id
-    name : 회사명
+    category : 직무 대분류 (현재는 IT/인터넷만)
+    sub_category : 직무 소분류
+    company_name : 회사명
+    work_location: 근무지역 (상세)
+    title: 공고 글 제목
     start_time : 시작일
     end_time : 종료일
     detail_type : 상세정보 자료형
     detail : 상세정보 데이터 
+    applyUrl: 채용 url
+    is_remote_work : 원격근무가능
+    experience : 근무 경험
     """
     recruits_list = []
+
+    # 현재 크롤링 시작 시간
+    now = datetime.now()
+    today_str = now.strftime("%Y%m%d")
+    print(f'## {now.strftime("%Y%m%d")} - 링커리어 사이트 크롤링 시작 ##')
+    time_24h_ago = now - timedelta(hours=24)
 
     # 채용공고 리스트
     btn_idx = 2 # prev가 0번째 idx이므로, 2부터 시작(첫 시작 페이지 제외)
@@ -47,7 +63,7 @@ if __name__ == "__main__":
     while True:
         req = driver.filter_network_log(pat='RecruitList&variables', timeout=TRFIC_PAUSE_TIME, reset=True)
         
-        if req.response.status_code == 408: # 다음 페이지로 넘어가지 못했을 경우
+        if btn_idx == 7 or req.response.status_code == 408: # 5페이지 이상 혹은 다음 페이지로 넘어가지 못했을 경우
             # 어디까지 수집했는지에 대한 로그처리 필요할듯 (now_page와 마지막으로 수집한 공고 비교 필요..)
             break
 
@@ -57,12 +73,18 @@ if __name__ == "__main__":
 
             recruits_list.append({
                 'id': item['id'],
-                'name': item['organizationName'],
+                'category' : 'IT/인터넷',
+                'sub_category' : " [SEP] ".join([i['name'] for i in item['categories']]),
+                'company_name': item['organizationName'],
+                'work_location' : item['addresses'][0]['address'],
+                'title': item['title'],
                 'start_time': None,
                 'end_time': None,
                 'detail_type': 'hybrid',
                 'detail': None,
-                'applyUrl': None
+                'applyUrl': None,
+                'is_remote_work' : item['addresses'][0]['isPossibleWorkingFromHome'],
+                'experience' : item['jobTypes'][0]
             })
 
         # 다음 버튼 찾기
@@ -91,7 +113,8 @@ if __name__ == "__main__":
     # 채용공고 별 상세정보
     from datetime import datetime, timezone
 
-    for item in recruits_list:
+    remove_idx = []
+    for idx, item in enumerate(recruits_list):
         driver.get(f'https://linkareer.com/activity/{item["id"]}')
 
         req = driver.filter_network_log(pat='gqlScreenActivityDetail&variables', timeout=TRFIC_PAUSE_TIME, reset=True)
@@ -99,16 +122,43 @@ if __name__ == "__main__":
 
         # 밀리초 날짜 형식으로 변환 (1초 = 1000밀리초)
         start_millisec = detail_data['data']['activity']['recruitStartAt']
-        start_time = datetime.fromtimestamp(start_millisec / 1000, timezone.utc).strftime("%Y-%m-%d")
-        
-        end_millisec = detail_data['data']['activity']['recruitCloseAt']
-        end_time = datetime.fromtimestamp(end_millisec / 1000, timezone.utc).strftime("%Y-%m-%d")
+        # 밀리초(ms) → 초(s) 변환 후 datetime 변환
+        start_datetime = datetime.fromtimestamp(start_millisec / 1000)
 
-        item['start_time'] = start_time
-        item['end_time'] = end_time
-        item['detail'] = detail_data['data']['activity']['detailText']['text']
-        item['applyUrl'] = detail_data['data']['activity']['applyDetail']
+        # 현재 시간으로부터 24시간 이내인지 확인
+        time_diff = now - start_datetime
+        is_within_24h = timedelta(0) <= time_diff <= timedelta(hours=24)
 
-        time.sleep(PAUSE_TIME)
+        # print(time_diff)
+        # print(is_within_24h)
 
-# 결과 : recruits_list에 담김.. 형식은 recruits_list 참고
+        if is_within_24h:
+            start_time = datetime.fromtimestamp(start_millisec / 1000, timezone.utc).strftime("%Y%m%d")
+            
+            end_millisec = detail_data['data']['activity']['recruitCloseAt']
+            end_time = datetime.fromtimestamp(end_millisec / 1000, timezone.utc).strftime("%Y%m%d")
+
+            item['start_time'] = start_time
+            item['end_time'] = end_time
+            
+            item['detail'] = detail_data['data']['activity']['detailText']['text']
+            item['applyUrl'] = detail_data['data']['activity']['applyDetail']
+
+            time.sleep(PAUSE_TIME)
+        else:
+            remove_idx.append(idx)
+            continue
+    
+
+    # 결과 : recruits_list에 담김.. 형식은 recruits_list 참고
+    recruits_result = pd.DataFrame(recruits_list)
+
+    recruits_result.drop(remove_idx, inplace=True)
+
+    # 저장할 폴더 경로
+    folder_path = f'results/{today_str}'
+    os.makedirs(folder_path, exist_ok=True)
+
+    # CSV 파일 저장 (UTF-8 인코딩, 인덱스 없이)
+    recruits_result.to_csv(f'{folder_path}/linkareer_{today_str}.csv', index=False, encoding='utf-8')
+    print(f"## {folder_path}/linkareer_{today_str}.csv 저장 완료")

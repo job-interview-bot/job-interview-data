@@ -3,6 +3,9 @@ from bs4 import BeautifulSoup
 
 from itertools import chain
 import time
+from datetime import datetime, timedelta
+import pandas as pd
+import sys, os
 
 PAUSE_TIME = 3  # 대기 시간
 TRFIC_PAUSE_TIME = 10 # 트래픽 캡처 대기 시간
@@ -35,11 +38,14 @@ if __name__ == "__main__":
 
     """
     id : 채용공고 id
-    name : 회사명
+    category : 직무 대분류 (현재는 IT/인터넷만)
+    company_name : 회사명
+    title: 공고 글 제목
     start_time : 시작일
     end_time : 종료일
     detail_type: 상세정보 데이터타입
     detail: 상세정보 데이터
+    recruit_type : 채용 형태 (추정?)
     applyUrl: 채용 url
     1. 어느 사이트에서 수집했는지
     2. 회사 로고 이미지
@@ -48,18 +54,28 @@ if __name__ == "__main__":
     
     """
     recruits_list = []
+    # 현재 크롤링 시작 시간
+    now = datetime.now()
+    today_str = now.strftime("%Y%m%d")
+    print(f'## {now.strftime("%Y%m%d")} - 자소설 사이트 크롤링 시작 ##')
+    time_24h_ago = now - timedelta(hours=24)
 
-    # 채용공고 리스트
+    # 채용공고 리스트 - 2024.11.29 부터 시작
+    # 오늘의 채용공고만 가져오는 방식으로 변경
+    # 초기 시작에는 이전 1달 크롤링
     for item in recruit_dict['employment']:
         group_id = [map(lambda x : x['group_id'], x['duty_groups']) for x in item['employments']]
         group_id = set(chain(*group_id)) # IT/인터넷 카테고리 코드가 있는지 확인
         
-        if group_id & category_code:
+        if (group_id & category_code) and datetime.fromisoformat(item['start_time'][:19]) >= time_24h_ago:
             recruits_list.append({
                 'id': item['id'],
-                'name': item['name'],
+                'category' : "IT/인터넷",
+                'company_name': item['name'],
+                'title' : item['title'],
                 'start_time': item['start_time'],
                 'end_time': item['end_time'],
+                'recruit_type' : item['recruit_type'],
                 'detail_type': None,
                 'detail': None,
                 'applyUrl': None
@@ -92,4 +108,12 @@ if __name__ == "__main__":
         time.sleep(PAUSE_TIME)
 
     # 결과 : recruits_list에 담김.. 형식은 recruits_list 참고
-                                  
+    recruits_result = pd.DataFrame(recruits_list)
+
+    # 저장할 폴더 경로
+    folder_path = f'results/{today_str}'
+    os.makedirs(folder_path, exist_ok=True)
+
+    # CSV 파일 저장 (UTF-8 인코딩, 인덱스 없이)
+    recruits_result.to_csv(f'{folder_path}/jasoseol_{today_str}.csv', index=False, encoding='utf-8')
+    print(f"## {folder_path}/jasoseol_{today_str}.csv 저장 완료")
