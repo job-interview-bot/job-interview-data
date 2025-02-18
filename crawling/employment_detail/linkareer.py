@@ -6,6 +6,9 @@ from selenium.webdriver.common.by import By
 
 from itertools import chain
 import time
+from datetime import datetime, timedelta
+import pandas as pd
+import sys, os
 
 PAUSE_TIME = 3  # 대기 시간
 TRFIC_PAUSE_TIME = 10 # 트래픽 캡처 대기 시간
@@ -29,8 +32,14 @@ if __name__ == "__main__":
     url = f'https://linkareer.com/list/recruit?filterBy_activityTypeID=5&filterBy_categoryIDs={category_code}&filterBy_status=OPEN&orderBy_direction=DESC&orderBy_field=RECENT&page=1'
     driver.get(url)
     driver.implicitly_wait(10)
-
+    
     recruits_list = []
+
+    # 현재 크롤링 시작 시간
+    now = datetime.now()
+    today_str = now.strftime("%Y%m%d")
+    print(f'## {now.strftime("%Y%m%d")} - 링커리어 사이트 크롤링 시작 ##')
+    time_24h_ago = now - timedelta(hours=24)
 
     # 채용공고 리스트
     btn_idx = 2 # prev가 0번째 idx이므로, 2부터 시작(첫 시작 페이지 제외)
@@ -39,7 +48,7 @@ if __name__ == "__main__":
     while True:
         req = driver.filter_network_log(pat='RecruitList&variables', timeout=TRFIC_PAUSE_TIME, reset=True)
         
-        if req.response.status_code == 408: # 다음 페이지로 넘어가지 못했을 경우
+        if btn_idx == 7 or req.response.status_code == 408: # 5페이지 이상 혹은 다음 페이지로 넘어가지 못했을 경우
             # 어디까지 수집했는지에 대한 로그처리 필요할듯 (now_page와 마지막으로 수집한 공고 비교 필요..)
             break
 
@@ -50,13 +59,16 @@ if __name__ == "__main__":
             recruits_list.append({
                 "채용사이트명": "링커리어",
                 "채용사이트_공고id": item['id'],
-                "직무_대분류": 0,
-                "직무_소분류": "임시",
-                "경력사항": item['jobTypes'], # list 형태임 ["NEW", "EXPERIENCED"]
+                "직무_대분류": "IT/인터넷", # [합의 필요] 서연's 코드 : 0
+                "직무_소분류": " [SEP] ".join([i['name'] for i in item['categories']]),
+                "경력사항": item['jobTypes'], # 근무경험 -> 경력사항 통일. [논의 필요] 경험이 여러개인 경우가 존재하는데, 이 경우 어떻게 처리? # list 형태임 ["NEW", "EXPERIENCED"] 
 
                 "회사명": item['organizationName'],
-                "근무지역(회사주소)": item['addresses'], # 주소가 여러개 담기나봄.. 각 원소의 ['address']에 총 주소값
+                "근무지역(회사주소)": item['addresses'][0]['address'], # [논의 필요] 주소가 여러개 담기나봄.. 각 원소의 ['address']에 총 주소값
                 "회사로고이미지": item['logoImage']['url'],
+                "회사복지": {
+                  "is_remote_work": item['addresses'][0]['isPossibleWorkingFromHome'] # [논의 필요] .md 파일에는 회사 복지 사항을 공고 상세에 넣는 걸로 표기했는데, 이렇게 따로 빼는 것도 좋을듯
+                }, 
                 
                 "공고제목": item['title'],
                 "공고본문_타입": "hybrid",
@@ -94,7 +106,8 @@ if __name__ == "__main__":
     # 채용공고 별 상세정보
     from datetime import datetime, timezone
 
-    for item in recruits_list:
+    remove_idx = []
+    for idx, item in enumerate(recruits_list):
         driver.get(f'https://linkareer.com/activity/{item["채용사이트_공고id"]}')
 
         req = driver.filter_network_log(pat='gqlScreenActivityDetail&variables', timeout=TRFIC_PAUSE_TIME, reset=True)
@@ -102,22 +115,47 @@ if __name__ == "__main__":
 
         # 밀리초 날짜 형식으로 변환 (1초 = 1000밀리초)
         start_millisec = detail_data['data']['activity']['recruitStartAt']
-        start_time = datetime.fromtimestamp(start_millisec / 1000, timezone.utc).strftime("%Y-%m-%d")
-        
-        end_millisec = detail_data['data']['activity']['recruitCloseAt']
-        end_time = datetime.fromtimestamp(end_millisec / 1000, timezone.utc).strftime("%Y-%m-%d")
+        # 밀리초(ms) → 초(s) 변환 후 datetime 변환
+        start_datetime = datetime.fromtimestamp(start_millisec / 1000)
 
-        created_millisec = detail_data['data']['activity']['createdAt']
-        created_time = datetime.fromtimestamp(created_millisec / 1000, timezone.utc).strftime("%Y-%m-%d")
+        # 현재 시간으로부터 24시간 이내인지 확인
+        time_diff = now - start_datetime
+        is_within_24h = timedelta(0) <= time_diff <= timedelta(hours=24)
 
-        item['공고본문_raw'] = detail_data['data']['activity']['detailText']['text']
-        item['공고출처url'] = detail_data['data']['activity']['applyDetail']
+        # print(time_diff)
+        # print(is_within_24h)
 
-        item['모집시작일'] = start_time
-        item['모집마감일'] = end_time
-        item['공고게시일'] = created_time
-        
+        if is_within_24h:
+            start_time = datetime.fromtimestamp(start_millisec / 1000, timezone.utc).strftime("%Y%m%d")
+            
+            end_millisec = detail_data['data']['activity']['recruitCloseAt']
+            end_time = datetime.fromtimestamp(end_millisec / 1000, timezone.utc).strftime("%Y%m%d")
+            
+            created_millisec = detail_data['data']['activity']['createdAt']
+            created_time = datetime.fromtimestamp(created_millisec / 1000, timezone.utc).strftime("%Y%m%d")
+            
+            item['모집시작일'] = start_time
+            item['모집마감일'] = end_time
+            item['공고게시일'] = created_time
+            
+            item['공고본문_raw'] = detail_data['data']['activity']['detailText']['text']
+            item['공고출처url'] = detail_data['data']['activity']['applyDetail']
+     
+            time.sleep(PAUSE_TIME)
+        else:
+            remove_idx.append(idx)
+            continue
+    
 
-        time.sleep(PAUSE_TIME)
+    # 결과 : recruits_list에 담김.. 형식은 recruits_list 참고
+    recruits_result = pd.DataFrame(recruits_list)
 
-# 결과 : recruits_list에 담김.. 형식은 recruits_list 참고
+    recruits_result.drop(remove_idx, inplace=True)
+
+    # 저장할 폴더 경로
+    folder_path = f'results/{today_str}'
+    os.makedirs(folder_path, exist_ok=True)
+
+    # CSV 파일 저장 (UTF-8 인코딩, 인덱스 없이)
+    recruits_result.to_csv(f'{folder_path}/linkareer_{today_str}.csv', index=False, encoding='utf-8')
+    print(f"## {folder_path}/linkareer_{today_str}.csv 저장 완료")
