@@ -23,15 +23,6 @@ if __name__ == "__main__":
     }
 
 
-    """
-    id : 채용공고 id
-    name : 회사명
-    start_time : 시작일
-    end_time : 종료일
-    detail_type: 상세정보 데이터타입
-    detail: 상세정보 데이터
-    applyUrl: 채용 url
-    """
     recruits_list = []
 
     params = {
@@ -51,7 +42,10 @@ if __name__ == "__main__":
         'recJobSubCategory': '',
         'companyName': '',
         'keywords':	'',
-        'uploadStartDate': '',
+        # 날짜값이 2025-02-18 05:24 일 경우, 시간에 %20을 넣어서 조회 가능
+        # 이 때, size 쿼리 파라미터는 없어도 됨.
+        # e.g) 'uploadStartDate': '2025-02-18%2005:24
+        'uploadStartDate': '', 
         'uploadEndDate': '',
         'workStartDate': '',
         'workEndDate': ''
@@ -88,26 +82,77 @@ if __name__ == "__main__":
 
         for item in res.json()['recruitments']['recruitmentSimpleList']:
             recruits_list.append({
-                'id': item['recruitmentUid'],
-                'name': item['companyName'],
-                'start_time': item['recruitmentStartDate'],
-                'end_time': item['recruitmentDeadline'],
-                'detail_type': 'img',
-                'detail': None,
-                'applyUrl': item['recruitmentAnnouncementLink']
+                "채용사이트명": "직행",
+                "채용사이트_공고id": item['recruitmentUid'],
+                "직무_대분류": 0,
+                "직무_소분류": "임시",
+                "경력사항": item['careers'], # 리스트형태. ['ONE', 'NINE']
+
+                "회사명": item['companyName'],
+                "근무지역(회사주소)": item['companyAddress'],
+                "회사로고이미지": item['mainImageUrl'],
+                
+                "공고제목": item['title'],
+                "공고본문_타입": None,
+                "공고본문_raw": None,
+                "공고출처url": item['recruitmentAnnouncementLink'],
+
+                "모집시작일": item['recruitmentStartDate'],
+                "모집마감일": item['recruitmentDeadline'],
+                "공고게시일": item['uploadDate'] # 2025-02-18 05:24
             })
 
+    options = wd.ChromeOptions()
+
+    # Chrome 옵션 설정
+    # options.add_argument('--headless')
+    options.add_argument("--disable-notifications")  # 알림 비활성화
+    options.add_experimental_option("prefs", {
+        "profile.default_content_setting_values.notifications": 2  # 1: 허용, 2: 차단
+    })
+
+    driver = wd.CustomizedDriver(options=options)
 
     # 채용공고 별 상세정보
-    for item in recruits_list:
-        url = f"https://zighang.com/recruitment/{item['id']}"
-        res = requests.get(url)
-        soup = BeautifulSoup(res.text, 'html.parser')
+    for idx, item in enumerate(recruits_list):
         
-        detail_res = soup.select_one('#root > main > div:nth-child(11) > iframe')
-        detail_html = BeautifulSoup(detail_res.get('srcdoc'), 'html.parser')
-        
+        url = f"https://zighang.com/recruitment/{item['채용사이트_공고id']}"
+        driver.get(url)
 
-        item['detail'] = detail_html.find('img').get('src')
+        # elem = driver.find_element_one(value="#root > main > div.relative:nth-child(3)")
+        detail_source = driver.find_element_all(value="#root > main > div.relative")[2].get_attribute('outerHTML')
+
+        detail_html = BeautifulSoup(detail_source, 'html.parser')
+
+        if detail_html.select_one('div.flex'): # 그룹바이 어쩌구는 div가 하나 더 생겨버림. 별도 처리..
+            detail_source = driver.find_element_all(value="#root > main > div.relative")[3].get_attribute('outerHTML')
+            detail_html = BeautifulSoup(detail_source, 'html.parser')
+        
+        # iframe 태그로 존재한다면 img
+        if detail_html.find('iframe'):
+            item['공고본문_타입'] = 'img'
+            item['공고본문_raw'] = BeautifulSoup(detail_html.get('srcdoc'), 'html.parser').find('img').get('src')
+        elif detail_html.find('img'): # 이미지와 텍스트가 동시에 있는 버전
+            item['공고본문_타입'] = 'hybrid'
+            elem = detail_html.find('img')
+            item['공고본문_raw'] = {
+                'img': elem.get('src'),
+                'text': elem.get('alt')
+            }
+        elif detail_html.select_one('div.break-keep > div'): #
+            item['공고본문_타입'] = 'text'
+            item['공고본문_raw'] = detail_html.select_one('div.break-keep > div').text
+        else: 
+            item['공고본문_타입'] = 'unknown'
+            item['공고본문_raw'] = detail_html.text
+
+        # res = requests.get(url)
+        # soup = BeautifulSoup(res.text, 'html.parser')
+        
+        # detail_res = soup.select_one('#root > main > div.relative:nth-child(3) > iframe')
+        # detail_html = BeautifulSoup(detail_res.get('srcdoc'), 'html.parser')
+        
+        # item['공고본문_타입'] = 'img'
+        # item['공고본문_raw'] = detail_html.find('img').get('src')
 
         time.sleep(PAUSE_TIME)

@@ -22,7 +22,7 @@ if __name__ == "__main__":
     })
 
     driver = wd.CustomizedDriver(options=options)
-    driver.scopes = ['calendar_list', 'get']
+    driver.scopes = ['calendar_list', 'get', 'company-reports']
 
     url = 'https://jasoseol.com/recruit'
 
@@ -33,20 +33,6 @@ if __name__ == "__main__":
     req = driver.filter_network_log(pat='calendar_list\.json', timeout=TRFIC_PAUSE_TIME)
     recruit_dict = driver.parse_request(req)
 
-    """
-    id : 채용공고 id
-    name : 회사명
-    start_time : 시작일
-    end_time : 종료일
-    detail_type: 상세정보 데이터타입
-    detail: 상세정보 데이터
-    applyUrl: 채용 url
-    1. 어느 사이트에서 수집했는지
-    2. 회사 로고 이미지
-    3. 회사 위치
-    4. 경력사항
-    
-    """
     recruits_list = []
 
     # 채용공고 리스트
@@ -56,18 +42,29 @@ if __name__ == "__main__":
         
         if group_id & category_code:
             recruits_list.append({
-                'id': item['id'],
-                'name': item['name'],
-                'start_time': item['start_time'],
-                'end_time': item['end_time'],
-                'detail_type': None,
-                'detail': None,
-                'applyUrl': None
+                "채용사이트명": "자소설",
+                "채용사이트_공고id": item['id'],
+                "직무_대분류": 0,
+                "직무_소분류": "임시",
+                "경력사항": "임시", # 코드화되어있어서 일단 못찾음. 확인 필요함
+
+                "회사명": item['name'],
+                "근무지역(회사주소)": "임시",
+                "회사로고이미지": None,
+                
+                "공고제목": item['title'],
+                "공고본문_타입": "img",
+                "공고본문_raw": None,
+                "공고출처url": None,
+
+                "모집시작일": item['start_time'],
+                "모집마감일": item['end_time'], # "2025-02-17T16:50:16.000+09:00"
+                "공고게시일": None
             })
 
     # 채용공고 별 상세정보
     for item in recruits_list:
-        driver.get(f'{url}/{item["id"]}')
+        driver.get(f'{url}/{item["채용사이트_공고id"]}')
 
         req = driver.filter_network_log(pat='get\.json', timeout=TRFIC_PAUSE_TIME, reset=True)
         detail_data = driver.parse_request(req)
@@ -84,10 +81,17 @@ if __name__ == "__main__":
 
         assert img_src, "[crawling.jasoseol] 상세정보 에러 2.2 : 이미지 URL을 찾을 수 없습니다."
 
-        item['detail_type'] = 'img'
-        item['detail'] = img_src
-        item['applyUrl'] = detail_data['employment_page_url']
-        print(item)
+        item["회사로고이미지"] = detail_data['image_file_name']
+
+        item['공고본문'] = img_src
+        item['공고출처url'] = detail_data['employment_page_url']
+
+        item['공고게시일'] = detail_data['created_at']
+
+        # company-reports(get)에 회사 주소 정보 있는데, company_information.json에서 more = true 면 주소정보가 날라오는 듯
+        # 테스트 필요함    
+        # company-reports는 리스트 형태, 원소['address'] 가 주소값
+
 
         time.sleep(PAUSE_TIME)
 

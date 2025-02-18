@@ -24,22 +24,13 @@ if __name__ == "__main__":
     })
 
     driver = wd.CustomizedDriver(options=options)
-    driver.scopes = ['results\?', 'details\?']
+    driver.scopes = ['results', 'details']
 
     url = f'https://www.wanted.co.kr/wdlist/{category_code}?country=kr&job_sort=job.latest_order&years=0&locations=all'
 
     driver.get(url)
     driver.implicitly_wait(10)
 
-    """
-    id : 채용공고 id
-    name : 회사명
-    start_time : 시작일
-    end_time : 종료일
-    detail_type: 상세정보 데이터타입
-    detail: 상세정보 데이터
-    applyUrl: 채용 url
-    """
     recruits_list = []
 
     # 무한 스크롤 대응
@@ -49,11 +40,14 @@ if __name__ == "__main__":
     while True:
         time.sleep(PAUSE_TIME)
 
-        reqs = driver.filter_network_log_all(pat='results\?', timeout=TRFIC_PAUSE_TIME)
+        reqs = driver.filter_network_log_all(pat='results', timeout=TRFIC_PAUSE_TIME)
         driver.check_status_code(reqs)
         now_page_len = len(reqs.response.data)
 
         if prev_page_len == now_page_len:
+            break
+
+        if prev_page_len > 5:
             break
 
         prev_page_len = now_page_len
@@ -67,13 +61,24 @@ if __name__ == "__main__":
         recruits_dict = driver.parse_request(req)
         for item in recruits_dict['data']:
             recruits_list.append({
-                'id': item['id'],
-                'name': item['company']['name'],
-                'start_time': None,
-                'end_time': None,
-                'detail_type': 'text',
-                'detail': None,
-                'applyUrl': None
+                "채용사이트명": "원티드",
+                "채용사이트_공고id": item['id'],
+                "직무_대분류": 0,
+                "직무_소분류": "임시",
+                "경력사항": "임시",
+
+                "회사명": item['company']['name'],
+                "근무지역(회사주소)": None,
+                "회사로고이미지": None, # url임
+                
+                "공고제목": None,
+                "공고본문_타입": "categorical",
+                "공고본문_raw": None,
+                "공고출처url": None,
+
+                "모집시작일": None, # 모집시작날짜가 따로 없는 것 같음.
+                "모집마감일": None,
+                "공고게시일": "임시" # 공고게시날짜가 따로 없는 것 같음.
             })
 
     # 리스트 체크용
@@ -85,15 +90,25 @@ if __name__ == "__main__":
     url = 'https://www.wanted.co.kr/wd'
 
     for item in recruits_list:
-        driver.get(f'{url}/{item["id"]}')
+        driver.get(f'{url}/{item["채용사이트_공고id"]}')
 
-        req = driver.filter_network_log(pat='details\?', timeout=TRFIC_PAUSE_TIME, reset=True)
-        detail_data = driver.parse_request(req)
+        req = driver.filter_network_log(pat='details', timeout=TRFIC_PAUSE_TIME, reset=True)
+        detail_data = driver.parse_request(req)['data']['job']
 
-        item['end_time'] = detail_data['job']['due_time']
-        item['detail_type'] = 'categorical'
-        item['detail'] = detail_data['job']['detail']
-        item['applyUrl'] = f'{url}/{item["id"]}'
+        # -> 2-5년이면 2, 5로 찍힘 어떻게 처리할 지 생각해볼 것
+        # item["경력사항"] = detail_data['annual_from'], detail_data['annual_to'] 
+
+        item['근무지역(회사주소)'] = detail_data['address']['full_location']
+        item['회사로고이미지'] = detail_data['company']['logo_img']['origin']
+        
+        item['공고제목'] = detail_data['detail']['position']
+        item['공고본문_raw'] = detail_data['detail']
+        # 공고 url 외부링크가 있을 경우, 다음 변수에 담김
+        out_link = detail_data['detail']['out_link']
+        item['공고출처url'] = f'{url}/{item["채용사이트_공고id"]}' if not out_link else out_link
+
+        item['모집마감일'] = detail_data['due_time']
+        
         
         time.sleep(PAUSE_TIME)       
 

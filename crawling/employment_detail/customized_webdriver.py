@@ -41,16 +41,19 @@ class CustomizedDriver(wd_wire.Chrome):
         """
         # Selenium webdriver 설정
         driver_path = ChromeDriverManager().install()
-        correct_driver_path = os.path.join(os.path.dirname(driver_path), "chromedriver.exe") # 오류 출처 : https://private.tistory.com/178
+        
+        # 윈도우에서 실행 시 
+        # correct_driver_path = os.path.join(os.path.dirname(driver_path), "chromedriver.exe") # 오류 출처 : https://private.tistory.com/178
+        # super().__init__(*args, service=ChromeService(executable_path=correct_driver_path), **kwargs)
 
-
-        super().__init__(*args, service=ChromeService(executable_path=correct_driver_path), **kwargs)
+        # 맥에서 실행 시
+        super().__init__(*args, service=ChromeService(executable_path=driver_path), **kwargs)
 
         # 네트워크 트래픽 캡처 범위 설정
         self.scopes = ['.*'] # 일단 모든 네트워크 트래픽을 캡처하도록 설정
         
 
-    def find_element(self, locator = By.CSS_SELECTOR, value: Optional[str] = None, timeout: int = 10) -> Optional[Callable[..., WebElement]]:
+    def find_element_one(self, locator = By.CSS_SELECTOR, value: Optional[str] = None, timeout: int = 10) -> Optional[Callable[..., WebElement]]:
         """html 요소 찾기 (단일)
 
         Args:

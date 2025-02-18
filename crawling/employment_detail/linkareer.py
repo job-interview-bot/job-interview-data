@@ -30,14 +30,6 @@ if __name__ == "__main__":
     driver.get(url)
     driver.implicitly_wait(10)
 
-    """
-    id : 채용공고 id
-    name : 회사명
-    start_time : 시작일
-    end_time : 종료일
-    detail_type : 상세정보 자료형
-    detail : 상세정보 데이터 
-    """
     recruits_list = []
 
     # 채용공고 리스트
@@ -56,13 +48,24 @@ if __name__ == "__main__":
         for item in recruits_dict['data']['activities']['nodes']:
 
             recruits_list.append({
-                'id': item['id'],
-                'name': item['organizationName'],
-                'start_time': None,
-                'end_time': None,
-                'detail_type': 'hybrid',
-                'detail': None,
-                'applyUrl': None
+                "채용사이트명": "링커리어",
+                "채용사이트_공고id": item['id'],
+                "직무_대분류": 0,
+                "직무_소분류": "임시",
+                "경력사항": item['jobTypes'], # list 형태임 ["NEW", "EXPERIENCED"]
+
+                "회사명": item['organizationName'],
+                "근무지역(회사주소)": item['addresses'], # 주소가 여러개 담기나봄.. 각 원소의 ['address']에 총 주소값
+                "회사로고이미지": item['logoImage']['url'],
+                
+                "공고제목": item['title'],
+                "공고본문_타입": "hybrid",
+                "공고본문_raw": None,
+                "공고출처url": None,
+
+                "모집시작일": None,
+                "모집마감일": None,
+                "공고게시일": None
             })
 
         # 다음 버튼 찾기
@@ -92,7 +95,7 @@ if __name__ == "__main__":
     from datetime import datetime, timezone
 
     for item in recruits_list:
-        driver.get(f'https://linkareer.com/activity/{item["id"]}')
+        driver.get(f'https://linkareer.com/activity/{item["채용사이트_공고id"]}')
 
         req = driver.filter_network_log(pat='gqlScreenActivityDetail&variables', timeout=TRFIC_PAUSE_TIME, reset=True)
         detail_data = driver.parse_request(req)
@@ -104,10 +107,16 @@ if __name__ == "__main__":
         end_millisec = detail_data['data']['activity']['recruitCloseAt']
         end_time = datetime.fromtimestamp(end_millisec / 1000, timezone.utc).strftime("%Y-%m-%d")
 
-        item['start_time'] = start_time
-        item['end_time'] = end_time
-        item['detail'] = detail_data['data']['activity']['detailText']['text']
-        item['applyUrl'] = detail_data['data']['activity']['applyDetail']
+        created_millisec = detail_data['data']['activity']['createdAt']
+        created_time = datetime.fromtimestamp(created_millisec / 1000, timezone.utc).strftime("%Y-%m-%d")
+
+        item['공고본문_raw'] = detail_data['data']['activity']['detailText']['text']
+        item['공고출처url'] = detail_data['data']['activity']['applyDetail']
+
+        item['모집시작일'] = start_time
+        item['모집마감일'] = end_time
+        item['공고게시일'] = created_time
+        
 
         time.sleep(PAUSE_TIME)
 
