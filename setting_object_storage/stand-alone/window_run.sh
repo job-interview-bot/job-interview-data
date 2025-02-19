@@ -14,13 +14,13 @@ powershell.exe -Command "netsh interface portproxy delete v4tov4 listenport=9001
 # 새로운 포트 포워딩 추가
 # winpty powershell.exe -Command "netsh interface portproxy add v4tov4 listenaddress=0.0.0.0 listenport=9000 connectaddress=$WSL_IP connectport=9000"
 # winpty powershell.exe -Command "netsh interface portproxy add v4tov4 listenaddress=0.0.0.0 listenport=9001 connectaddress=$WSL_IP connectport=9001"
-winpty powershell.exe -Command "Start-Process powershell -ArgumentList 'netsh interface portproxy add v4tov4 listenaddress=0.0.0.0 listenport=9000 connectaddress=$WSL_IP connectport=9000' -Verb RunAs"
-winpty powershell.exe -Command "Start-Process powershell -ArgumentList 'netsh interface portproxy add v4tov4 listenaddress=0.0.0.0 listenport=9001 connectaddress=$WSL_IP connectport=9001' -Verb RunAs"
+powershell.exe -Command "Start-Process powershell -ArgumentList 'netsh interface portproxy add v4tov4 listenaddress=0.0.0.0 listenport=9000 connectaddress=$WSL_IP connectport=9000' -Verb RunAs"
+powershell.exe -Command "Start-Process powershell -ArgumentList 'netsh interface portproxy add v4tov4 listenaddress=0.0.0.0 listenport=9001 connectaddress=$WSL_IP connectport=9001' -Verb RunAs"
 
 
 echo "Port forwarding updated for WSL2 IP: $WSL_IP"
 
 # Docker Compose 실행
-exec docker-compose up -d
+exec docker compose up -d
 
 
