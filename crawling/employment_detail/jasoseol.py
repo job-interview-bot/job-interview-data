@@ -3,13 +3,17 @@ from bs4 import BeautifulSoup
 
 from itertools import chain
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import pandas as pd
 import sys, os
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
 PAUSE_TIME = 3  # 대기 시간
-TRFIC_PAUSE_TIME = 10 # 트래픽 캡처 대기 시간
-
+TRFIC_PAUSE_TIME = 20 # 트래픽 캡처 대기 시간
+KST = timezone(timedelta(hours=9))
 
 if __name__ == "__main__":
     # 채용공고 IT/인터넷 카테고리 코드
@@ -38,23 +42,20 @@ if __name__ == "__main__":
     
     recruits_list = []
     # 현재 크롤링 시작 시간
-    now = datetime.now()
+    now = datetime.now(KST)
     today_str = now.strftime("%Y%m%d")
     print(f'## {now.strftime("%Y%m%d")} - 자소설 사이트 크롤링 시작 ##')
     time_24h_ago = now - timedelta(hours=24)
 
-    # 채용공고 리스트 - 2024.11.29 부터 시작
-    # 오늘의 채용공고만 가져오는 방식으로 변경
-    # 초기 시작에는 이전 1달 크롤링
     for item in recruit_dict['employment']:
         group_id = [map(lambda x : x['group_id'], x['duty_groups']) for x in item['employments']]
         group_id = set(chain(*group_id)) # IT/인터넷 카테고리 코드가 있는지 확인
         
-        if (group_id & category_code) and datetime.fromisoformat(item['start_time'][:19]) >= time_24h_ago:
+        if group_id & category_code:
             recruits_list.append({
                 "채용사이트명": "자소설",
                 "채용사이트_공고id": item['id'],
-                "직무_대분류": "IT/인터넷", # [합의 필요] 서연's 코드 : 0
+                "직무_대분류": 0, # [합의 필요] 서연's 코드 : 0
                 "직무_소분류": "임시",
                 "경력사항": "임시", # 코드화되어있어서 일단 못찾음. 확인 필요함
 
@@ -73,40 +74,58 @@ if __name__ == "__main__":
             })
 
     # 채용공고 별 상세정보
-    for item in recruits_list:
+
+    remove_idx = []
+    for idx, item in enumerate(recruits_list):
         driver.get(f'{url}/{item["채용사이트_공고id"]}')
+        WebDriverWait(driver, TRFIC_PAUSE_TIME).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
 
-        req = driver.filter_network_log(pat='get\.json', timeout=TRFIC_PAUSE_TIME, reset=True)
-        detail_data = driver.parse_request(req)
+        try:
+            req = driver.filter_network_log(pat='get\.json', timeout=TRFIC_PAUSE_TIME, reset=True)
+            assert req is not None, 'No network request matched the pattern.'
+            assert req.response.status_code == 200, f'Unexpected status code: {req.response.status_code}'
 
-        soup = BeautifulSoup(detail_data['content'], 'html.parser')
+            detail_data = driver.parse_request(req)
 
-        # 이미지 태그 가져오기
-        img_tag = soup.find("img")
+            soup = BeautifulSoup(detail_data['content'], 'html.parser')
 
-        assert img_tag, "[crawling.jasoseol] 상세정보 에러 2.1 : 이미지 태그를 찾을 수 없습니다."
+            item['공고게시일'] = detail_data['created_at']
+            post_date = datetime.strptime(item['공고게시일'], "%Y-%m-%dT%H:%M:%S.%f%z")
 
-        # src 속성 가져오기
-        img_src = img_tag.get("src")
+            # 24시간 제한
+            if now - post_date <= timedelta(hours=24):
+                # 이미지 태그 가져오기
+                img_tag = soup.find("img")
 
-        assert img_src, "[crawling.jasoseol] 상세정보 에러 2.2 : 이미지 URL을 찾을 수 없습니다."
+                assert img_tag, "[crawling.jasoseol] 상세정보 에러 2.1 : 이미지 태그를 찾을 수 없습니다."
 
-        item["회사로고이미지"] = detail_data['image_file_name']
+                # src 속성 가져오기
+                img_src = img_tag.get("src")
 
-        item['공고본문'] = img_src
-        item['공고출처url'] = detail_data['employment_page_url']
+                assert img_src, "[crawling.jasoseol] 상세정보 에러 2.2 : 이미지 URL을 찾을 수 없습니다."
 
-        item['공고게시일'] = detail_data['created_at']
+                item["회사로고이미지"] = detail_data['image_file_name']
 
-        # company-reports(get)에 회사 주소 정보 있는데, company_information.json에서 more = true 면 주소정보가 날라오는 듯
-        # 테스트 필요함    
-        # company-reports는 리스트 형태, 원소['address'] 가 주소값
+                item['공고본문'] = img_src
+                item['공고출처url'] = detail_data['employment_page_url']
+                # company-reports(get)에 회사 주소 정보 있는데, company_information.json에서 more = true 면 주소정보가 날라오는 듯
+                # 테스트 필요함    
+                # company-reports는 리스트 형태, 원소['address'] 가 주소값
 
-        time.sleep(PAUSE_TIME)
+                time.sleep(PAUSE_TIME)
+
+            else:
+                remove_idx.append(idx)
+                continue
+
+        except AssertionError as e:
+            print(f"AssertionError: {e}")
+            continue  # 다음 아이템으로 넘어감
 
     # 결과 : recruits_list에 담김.. 형식은 recruits_list 참고
     recruits_result = pd.DataFrame(recruits_list)
-
+    recruits_result.drop(remove_idx, inplace=True)
+    
     # 저장할 폴더 경로
     folder_path = f'results/{today_str}'
     os.makedirs(folder_path, exist_ok=True)

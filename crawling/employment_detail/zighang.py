@@ -6,10 +6,13 @@ from selenium.webdriver.common.by import By
 
 from itertools import chain
 import time
+import pandas as pd
+from datetime import datetime, timedelta, timezone
+import sys, os
 
 PAUSE_TIME = 3  # 대기 시간
 TRFIC_PAUSE_TIME = 10 # 트래픽 캡처 대기 시간
-
+KST = timezone(timedelta(hours=9))
 
 if __name__ == "__main__":
 
@@ -24,6 +27,11 @@ if __name__ == "__main__":
 
 
     recruits_list = []
+
+    # 현재 크롤링 시작 시간
+    now = datetime.now(KST)
+    today_str = now.strftime("%Y%m%d")
+    print(f'## {now.strftime("%Y%m%d")} - 직행 사이트 크롤링 시작 ##')
 
     params = {
         'page': 0,
@@ -81,26 +89,30 @@ if __name__ == "__main__":
         res = requests.get(url, headers=headers)
 
         for item in res.json()['recruitments']['recruitmentSimpleList']:
-            recruits_list.append({
-                "채용사이트명": "직행",
-                "채용사이트_공고id": item['recruitmentUid'],
-                "직무_대분류": 0,
-                "직무_소분류": "임시",
-                "경력사항": item['careers'], # 리스트형태. ['ONE', 'NINE']
+            post_date = datetime.strptime(item['uploadDate'], "%Y-%m-%d %H:%M").replace(tzinfo=KST)
 
-                "회사명": item['companyName'],
-                "근무지역(회사주소)": item['companyAddress'],
-                "회사로고이미지": item['mainImageUrl'],
-                
-                "공고제목": item['title'],
-                "공고본문_타입": None,
-                "공고본문_raw": None,
-                "공고출처url": item['recruitmentAnnouncementLink'],
+            # 공고게시일 기준 24h 이내
+            if now - post_date <= timedelta(hours=24):
+                recruits_list.append({
+                    "채용사이트명": "직행",
+                    "채용사이트_공고id": item['recruitmentUid'],
+                    "직무_대분류": 0,
+                    "직무_소분류": "임시",
+                    "경력사항": " [SEP] ".join(x for x in item['careers']), # 리스트형태. ['ONE', 'NINE']
 
-                "모집시작일": item['recruitmentStartDate'],
-                "모집마감일": item['recruitmentDeadline'],
-                "공고게시일": item['uploadDate'] # 2025-02-18 05:24
-            })
+                    "회사명": item['companyName'],
+                    "근무지역(회사주소)": item['companyAddress'],
+                    "회사로고이미지": item['mainImageUrl'],
+                    
+                    "공고제목": item['title'],
+                    "공고본문_타입": None,
+                    "공고본문_raw": None,
+                    "공고출처url": item['recruitmentAnnouncementLink'],
+
+                    "모집시작일": item['recruitmentStartDate'],
+                    "모집마감일": item['recruitmentDeadline'],
+                    "공고게시일": item['uploadDate'] # 2025-02-18 05:24
+                })
 
     options = wd.ChromeOptions()
 
@@ -156,3 +168,15 @@ if __name__ == "__main__":
         # item['공고본문_raw'] = detail_html.find('img').get('src')
 
         time.sleep(PAUSE_TIME)
+
+    # 결과 : recruits_list에 담김.. 형식은 recruits_list 참고
+    recruits_result = pd.DataFrame(recruits_list)
+
+
+    # 저장할 폴더 경로
+    folder_path = f'results/{today_str}'
+    os.makedirs(folder_path, exist_ok=True)
+
+    # CSV 파일 저장 (UTF-8 인코딩, 인덱스 없이)
+    recruits_result.to_csv(f'{folder_path}/zighang_{today_str}.csv', index=False, encoding='utf-8')
+    print(f"## {folder_path}/zighang_{today_str}.csv 저장 완료")
