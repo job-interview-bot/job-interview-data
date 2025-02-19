@@ -62,6 +62,29 @@
     ※ 02.18 현재 distributed 모드는 작성 미완입니다. stand-alone 모드로만 환경구축해주세요. 
     
 
+### **📌 TroubleShooting**
+- `TypeError: kwargs_from_env() got an unexpected keyword argument 'ssl_version’`
+
+
+docker 패키지 버전 문제입니다.
+
+    1. docker-desktop 업데이트
+    2. conda 내 docker 패키지 버전 확인
+    3. `pip install docker==6.1.3` 으로 재설치
+
+
+- `Not supported URL scheme error`
+```bash
+File "/home/yewon/miniconda3/envs/job/lib/python3.11/site-packages/docker/api/client.py", line 221, in _retrieve_server_version
+raise DockerException(
+docker.errors.DockerException: Error while fetching server API version: Not supported URL scheme http+docker
+```
+> docker compose 명령어 관련 문제입니다.
+
+    1. `docker compose up -d` 로 실행 명령어 변경
+
+
+
 ## 구축 과정(참고용)
 
 구축 과정이 어떻게 되는지를 설명하는 부분입니다.
