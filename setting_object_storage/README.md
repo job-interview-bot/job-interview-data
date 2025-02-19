@@ -51,8 +51,9 @@
         (로컬과 Docker의 연결이 자동으로 되도록 sh파일을 작성했습니다.)
         
         ```bash
-        # /stand-alone
-        # /distributed
+        # 실행 터미널 : bash or sh shell (git bash)
+        # 파일명 : /stand-alone
+        # 파일명 : /distributed
         sh window_run.sh
         ```
         
