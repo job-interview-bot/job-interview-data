@@ -6,6 +6,7 @@ test.ipynb
 setting_object_storage/stand-alone/minio-data/
 crawling/employment_detail/__pycache__/
 .env
+__pycache__
 
 # pre-commit hook python version change
 .pre-commit-config.yaml
