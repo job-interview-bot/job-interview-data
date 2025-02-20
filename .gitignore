@@ -1,6 +1,11 @@
 # Created by https://www.toptal.com/developers/gitignore/api/images,windows,macos,linux
 # Edit at https://www.toptal.com/developers/gitignore?templates=images,windows,macos,linux
-./results
+results/
+downloaded_results/
+test.ipynb
+setting_object_storage/stand-alone/minio-data/
+crawling/employment_detail/__pycache__/
+.env
 
 # pre-commit hook python version change
 .pre-commit-config.yaml

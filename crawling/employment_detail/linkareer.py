@@ -6,13 +6,13 @@ from selenium.webdriver.common.by import By
 
 from itertools import chain
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import pandas as pd
 import sys, os
 
 PAUSE_TIME = 3  # 대기 시간
 TRFIC_PAUSE_TIME = 10 # 트래픽 캡처 대기 시간
-
+KST = timezone(timedelta(hours=9))
 
 if __name__ == "__main__":
     category_code = 58 # IT개발/인터넷 코드
@@ -36,9 +36,9 @@ if __name__ == "__main__":
     recruits_list = []
 
     # 현재 크롤링 시작 시간
-    now = datetime.now()
+    now = datetime.now(KST)
     today_str = now.strftime("%Y%m%d")
-    print(f'## {now.strftime("%Y%m%d")} - 링커리어 사이트 크롤링 시작 ##')
+    print(f'## {today_str} - 링커리어 사이트 크롤링 시작 ##')
     time_24h_ago = now - timedelta(hours=24)
 
     # 채용공고 리스트
@@ -59,9 +59,9 @@ if __name__ == "__main__":
             recruits_list.append({
                 "채용사이트명": "링커리어",
                 "채용사이트_공고id": item['id'],
-                "직무_대분류": "IT/인터넷", # [합의 필요] 서연's 코드 : 0
+                "직무_대분류": 0, # [합의 필요] 서연's 코드 : 0
                 "직무_소분류": " [SEP] ".join([i['name'] for i in item['categories']]),
-                "경력사항": item['jobTypes'], # 근무경험 -> 경력사항 통일. [논의 필요] 경험이 여러개인 경우가 존재하는데, 이 경우 어떻게 처리? # list 형태임 ["NEW", "EXPERIENCED"] 
+                "경력사항": " [SEP] ".join([i for i in item['jobTypes']]), # 근무경험 -> 경력사항 통일. [논의 필요] 경험이 여러개인 경우가 존재하는데, 이 경우 어떻게 처리? # list 형태임 ["NEW", "EXPERIENCED"] 
 
                 "회사명": item['organizationName'],
                 "근무지역(회사주소)": item['addresses'][0]['address'], # [논의 필요] 주소가 여러개 담기나봄.. 각 원소의 ['address']에 총 주소값
@@ -137,8 +137,12 @@ if __name__ == "__main__":
             item['모집시작일'] = start_time
             item['모집마감일'] = end_time
             item['공고게시일'] = created_time
-            
-            item['공고본문_raw'] = detail_data['data']['activity']['detailText']['text']
+
+             # 여기서 HTML 파싱 후 텍스트만 추출
+            raw_html = detail_data['data']['activity']['detailText']['text']
+            soup = BeautifulSoup(raw_html, "html.parser")
+            clean_text = soup.get_text(separator="\n", strip=True)  # 태그 제거 후 순수 텍스트만 가져오기
+            item['공고본문_raw'] = clean_text
             item['공고출처url'] = detail_data['data']['activity']['applyDetail']
      
             time.sleep(PAUSE_TIME)
