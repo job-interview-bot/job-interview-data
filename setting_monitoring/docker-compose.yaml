@@ -1,0 +1,28 @@
+
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: unless-stopped
+    networks:
+      - monitor-net
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml" # 혹시 모를 기본 설정파일 변경 방지
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    networks:
+      - monitor-net
+    ports:
+      - "3000:3000"
+    # grafna 기본 로그인 정보 id/pw : admin / admin
+
+networks:
+  monitor-net:
+    external: true
