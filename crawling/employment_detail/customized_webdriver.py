@@ -156,7 +156,7 @@ class CustomizedDriver(wd_wire.Chrome):
         # })
 
         try:
-            found_req = self.wait_for_request(pat=kwargs["pat"], timeout=timeout)
+            found_req = self.wait_for_request(pat=pat, timeout=timeout)
         except TimeoutException:
             # 패턴 시간 초과
             found_req = False
@@ -166,7 +166,7 @@ class CustomizedDriver(wd_wire.Chrome):
         if found_req:
             for req in self.requests:
                 # req.response is not None : response를 받은 경우에만(요청 성공 시에만) 고려
-                if req.response and re.search(kwargs["pat"], req.url):
+                if req.response and re.search(pat, req.url):
                     reqs.response.data.append(req)
 
         if reset:
