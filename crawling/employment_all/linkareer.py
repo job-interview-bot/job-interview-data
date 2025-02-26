@@ -10,9 +10,10 @@ from datetime import datetime, timedelta, timezone
 import pandas as pd
 import sys, os
 
-PAUSE_TIME = 2  # 대기 시간
+PAUSE_TIME = 2.5  # 대기 시간
 TRFIC_PAUSE_TIME = 10  # 트래픽 캡처 대기 시간
 KST = timezone(timedelta(hours=9))
+
 
 if __name__ == "__main__":
     category_code = 58  # IT개발/인터넷 코드
@@ -26,6 +27,7 @@ if __name__ == "__main__":
         "prefs",
         {"profile.default_content_setting_values.notifications": 2},  # 1: 허용, 2: 차단
     )
+    options.page_load_strategy = "none"  # 로딩 무시 옵션 추가
 
     driver = wd.CustomizedDriver(options=options)
     driver.scopes = ["ScreenJobCategory", "RecruitList", "gqlScreenActivityDetail"]
@@ -39,8 +41,7 @@ if __name__ == "__main__":
     # 현재 크롤링 시작 시간
     now = datetime.now(KST)
     today_str = now.strftime("%Y%m%d")
-    print(f"## {today_str} - 링커리어 사이트 크롤링 시작 ##")
-    time_24h_ago = now - timedelta(hours=24)
+    print(f'## {now.strftime("%Y%m%d")} - 링커리어 사이트 크롤링 시작 ##')
 
     # 채용공고 리스트
     btn_idx = 2  # prev가 0번째 idx이므로, 2부터 시작(첫 시작 페이지 제외)
@@ -48,12 +49,11 @@ if __name__ == "__main__":
 
     while True:
         req = driver.filter_network_log(
-            pat="RecruitList&variables", timeout=TRFIC_PAUSE_TIME, reset=True
+            pat=r"RecruitList&variables", timeout=TRFIC_PAUSE_TIME, reset=True
         )
 
-        # 페이지 넘버링 변수 수정
         if (
-            int(now_page.strip()) == 7 or req.response.status_code == 408
+            int(now_page.strip()) == 50 or req.response.status_code == 408
         ):  # 5페이지 이상 혹은 다음 페이지로 넘어가지 못했을 경우
             # 어디까지 수집했는지에 대한 로그처리 필요할듯 (now_page와 마지막으로 수집한 공고 비교 필요..)
             break
@@ -66,7 +66,7 @@ if __name__ == "__main__":
                 {
                     "채용사이트명": "링커리어",
                     "채용사이트_공고id": item["id"],
-                    "직무_대분류": 0,  # [합의 필요] 서연's 코드 : 0
+                    "직무_대분류": "IT/인터넷",  # [합의 필요] 서연's 코드 : 0
                     "직무_소분류": " [SEP] ".join(
                         [i["name"] for i in item["categories"]]
                     ),
@@ -79,9 +79,12 @@ if __name__ == "__main__":
                     ),  # 주소 여러개일 경우, [SEP]으로 분리
                     "회사로고이미지": item["logoImage"]["url"],
                     "회사복지": {
-                        "is_remote_work": item["addresses"][0][
-                            "isPossibleWorkingFromHome"
-                        ]  # [논의 필요] .md 파일에는 회사 복지 사항을 공고 상세에 넣는 걸로 표기했는데, 이렇게 따로 빼는 것도 좋을듯
+                        # [논의 필요] .md 파일에는 회사 복지 사항을 공고 상세에 넣는 걸로 표기했는데, 이렇게 따로 빼는 것도 좋을듯
+                        "is_remote_work": (
+                            item["addresses"][0]["isPossibleWorkingFromHome"]
+                            if item["addresses"]
+                            else None
+                        )
                     },
                     "공고제목": item["title"],
                     "공고본문_타입": "hybrid",
@@ -92,6 +95,11 @@ if __name__ == "__main__":
                     "공고게시일": None,
                 }
             )
+
+        # # 더미데이터 뽑기용
+        # if len(recruits_list) >= 100:
+        #     print(len(recruits_list))
+        #     break
 
         # 다음 버튼 찾기
         buttons = driver.find_element_all(
@@ -107,7 +115,8 @@ if __name__ == "__main__":
 
         # next 버튼일 경우, 페이지 번호(텍스트) 존재 x
         next_page = buttons[btn_idx].find_element(By.CLASS_NAME, "MuiButton-label").text
-        print(next_page, now_page, btn_idx, req.response.status_code)
+        # print(next_page, now_page, btn_idx, req.response.status_code)
+        print(now_page)
 
         if not next_page:
             btn_idx = 2
@@ -121,7 +130,6 @@ if __name__ == "__main__":
     # 채용공고 별 상세정보
     from datetime import datetime, timezone
 
-    remove_idx = []
     for idx, item in enumerate(recruits_list):
         try:
             driver.get(f'https://linkareer.com/activity/{item["채용사이트_공고id"]}')
@@ -140,44 +148,35 @@ if __name__ == "__main__":
             # 밀리초(ms) → 초(s) 변환 후 datetime 변환
             start_datetime = datetime.fromtimestamp(start_millisec / 1000)
 
-            # 현재 시간으로부터 24시간 이내인지 확인
-            time_diff = now - start_datetime
-            is_within_24h = timedelta(0) <= time_diff <= timedelta(hours=24)
-
             # print(time_diff)
             # print(is_within_24h)
 
-            if is_within_24h:
-                start_time = datetime.fromtimestamp(
-                    start_millisec / 1000, timezone.utc
-                ).strftime("%Y%m%d")
+            start_time = datetime.fromtimestamp(
+                start_millisec / 1000, timezone.utc
+            ).strftime("%Y%m%d")
 
-                end_millisec = detail_data["data"]["activity"]["recruitCloseAt"]
-                end_time = datetime.fromtimestamp(
-                    end_millisec / 1000, timezone.utc
-                ).strftime("%Y%m%d")
+            end_millisec = detail_data["data"]["activity"]["recruitCloseAt"]
+            end_time = datetime.fromtimestamp(
+                end_millisec / 1000, timezone.utc
+            ).strftime("%Y%m%d")
 
-                created_millisec = detail_data["data"]["activity"]["createdAt"]
-                created_time = datetime.fromtimestamp(
-                    created_millisec / 1000, timezone.utc
-                ).strftime("%Y%m%d")
+            created_millisec = detail_data["data"]["activity"]["createdAt"]
+            created_time = datetime.fromtimestamp(
+                created_millisec / 1000, timezone.utc
+            ).strftime("%Y%m%d")
 
-                item["모집시작일"] = start_time
-                item["모집마감일"] = end_time
-                item["공고게시일"] = created_time
+            item["모집시작일"] = start_time
+            item["모집마감일"] = end_time
+            item["공고게시일"] = created_time
 
-                # 여기서 HTML 파싱 후 텍스트만 추출
-                raw_html = detail_data["data"]["activity"]["detailText"]["text"]
-                soup = BeautifulSoup(raw_html, "html.parser")
-                clean_text = soup.get_text(
-                    separator="\n", strip=True
-                )  # 태그 제거 후 순수 텍스트만 가져오기
-                item["공고본문_raw"] = clean_text
-                item["공고출처url"] = detail_data["data"]["activity"]["applyDetail"]
-
-            else:
-                remove_idx.append(idx)
-                continue
+            # 여기서 HTML 파싱 후 텍스트만 추출
+            raw_html = detail_data["data"]["activity"]["detailText"]["text"]
+            soup = BeautifulSoup(raw_html, "html.parser")
+            clean_text = soup.get_text(
+                separator="\n", strip=True
+            )  # 태그 제거 후 순수 텍스트만 가져오기
+            item["공고본문_raw"] = clean_text
+            item["공고출처url"] = detail_data["data"]["activity"]["applyDetail"]
 
         except Exception as e:
             print(f"[{type(e).__name__}] item_id({item['채용사이트_공고id']}): {e}")
@@ -187,16 +186,14 @@ if __name__ == "__main__":
     # 결과 : recruits_list에 담김.. 형식은 recruits_list 참고
     recruits_result = pd.DataFrame(recruits_list)
 
-    recruits_result.drop(remove_idx, inplace=True)
-
     # 저장할 폴더 경로
     folder_path = f"results/{today_str}"
     os.makedirs(folder_path, exist_ok=True)
 
     # CSV 파일 저장 (UTF-8 인코딩, 인덱스 없이)
     recruits_result.to_csv(
-        f"{folder_path}/linkareer_{today_str}.csv", index=False, encoding="utf-8"
+        f"{folder_path}/linkareer_{today_str}_all.csv", index=False, encoding="utf-8"
     )
-    print(f"## {folder_path}/linkareer_{today_str}.csv 저장 완료")
+    print(f"## {folder_path}/linkareer_{today_str}_all.csv 저장 완료")
 
     driver.close()

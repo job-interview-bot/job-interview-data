@@ -6,17 +6,20 @@ from selenium.webdriver.common.by import By
 
 from itertools import chain
 import time
-import pandas as pd
 from datetime import datetime, timedelta, timezone
+import pandas as pd
 import sys, os
 
-PAUSE_TIME = 3  # 대기 시간
-TRFIC_PAUSE_TIME = 10  # 트래픽 캡처 대기 시간
+PAUSE_TIME = (
+    1  # 대기 시간 : 1로 하니까 트래픽 과부화옴(503에러 발생). 적어도 2초 이상 줘야할 듯
+)
+TRFIC_PAUSE_TIME = 30  # 트래픽 캡처 대기 시간
 KST = timezone(timedelta(hours=9))
+
 
 if __name__ == "__main__":
 
-    data_size = 11  # 수집할 채용공고 개수
+    data_size = 1000  # 수집할 채용공고 개수
     category_codes = [  # IT개발/인터넷 코드
         "AI_%EB%8D%B0%EC%9D%B4%ED%84%B0",  # AI_데이터
         "IT%EA%B0%9C%EB%B0%9C_%EB%8D%B0%EC%9D%B4%ED%84%B0",  # IT개발_데이터
@@ -89,33 +92,27 @@ if __name__ == "__main__":
         res = requests.get(url, headers=headers)
 
         for item in res.json()["recruitments"]["recruitmentSimpleList"]:
-            post_date = datetime.strptime(item["uploadDate"], "%Y-%m-%d %H:%M").replace(
-                tzinfo=KST
+            recruits_list.append(
+                {
+                    "채용사이트명": "직행",
+                    "채용사이트_공고id": item["recruitmentUid"],
+                    "직무_대분류": 0,
+                    "직무_소분류": "임시",
+                    "경력사항": " [SEP] ".join(
+                        x for x in item["careers"]
+                    ),  # "ONE [SEP] NINE"
+                    "회사명": item["companyName"],
+                    "근무지역(회사주소)": item["companyAddress"],
+                    "회사로고이미지": item["mainImageUrl"],
+                    "공고제목": item["title"],
+                    "공고본문_타입": None,
+                    "공고본문_raw": None,
+                    "공고출처url": item["recruitmentAnnouncementLink"],
+                    "모집시작일": item["recruitmentStartDate"],
+                    "모집마감일": item["recruitmentDeadline"],
+                    "공고게시일": item["uploadDate"],  # 2025-02-18 05:24
+                }
             )
-
-            # 공고게시일 기준 24h 이내
-            if now - post_date <= timedelta(hours=24):
-                recruits_list.append(
-                    {
-                        "채용사이트명": "직행",
-                        "채용사이트_공고id": item["recruitmentUid"],
-                        "직무_대분류": 0,
-                        "직무_소분류": "임시",
-                        "경력사항": " [SEP] ".join(
-                            x for x in item["careers"]
-                        ),  # "ONE [SEP] NINE"
-                        "회사명": item["companyName"],
-                        "근무지역(회사주소)": item["companyAddress"],
-                        "회사로고이미지": item["mainImageUrl"],
-                        "공고제목": item["title"],
-                        "공고본문_타입": None,
-                        "공고본문_raw": None,
-                        "공고출처url": item["recruitmentAnnouncementLink"],
-                        "모집시작일": item["recruitmentStartDate"],
-                        "모집마감일": item["recruitmentDeadline"],
-                        "공고게시일": item["uploadDate"],  # 2025-02-18 05:24
-                    }
-                )
 
     options = wd.ChromeOptions()
 
@@ -126,8 +123,11 @@ if __name__ == "__main__":
         "prefs",
         {"profile.default_content_setting_values.notifications": 2},  # 1: 허용, 2: 차단
     )
+    options.page_load_strategy = "none"  # 로딩 무시 옵션 추가
 
     driver = wd.CustomizedDriver(options=options)
+
+    import json
 
     # 채용공고 별 상세정보
     for idx, item in enumerate(recruits_list):
@@ -189,8 +189,8 @@ if __name__ == "__main__":
 
     # CSV 파일 저장 (UTF-8 인코딩, 인덱스 없이)
     recruits_result.to_csv(
-        f"{folder_path}/zighang_{today_str}.csv", index=False, encoding="utf-8"
+        f"{folder_path}/zighang_{today_str}_all.csv", index=False, encoding="utf-8"
     )
-    print(f"## {folder_path}/zighang_{today_str}.csv 저장 완료")
+    print(f"## {folder_path}/zighang_{today_str}_all.csv 저장 완료")
 
     driver.close()
