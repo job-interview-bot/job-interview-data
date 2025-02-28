@@ -53,7 +53,7 @@ airflow scheduler
 - docker-compose 띄우기
 ```bash
 # cd airflow/
-sh run.sh
+bash run.sh
 ```
 
 

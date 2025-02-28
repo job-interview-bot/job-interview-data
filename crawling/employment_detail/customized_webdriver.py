@@ -19,11 +19,12 @@ from selenium.webdriver.common.by import By
 
 from selenium.common.exceptions import TimeoutException
 from selenium.webdriver import ChromeOptions
+from selenium.webdriver.chrome.options import Options
 
 from typing import Optional, Union, List, Dict, Callable
 from selenium.webdriver.remote.webelement import WebElement
 from seleniumwire.request import Request, Response
-
+from selenium.webdriver.chrome.service import Service
 
 
 class DotDict(dict):
@@ -39,21 +40,38 @@ class CustomizedDriver(wd_wire.Chrome):
     def __init__(self, *args, **kwargs):
         """WebDriver 설정 및 인스턴스 생성
         """
-        # Selenium webdriver 설정
-        driver_path = ChromeDriverManager().install()
+        # Selenium webdriver 설정 - docker airflow
+        driver_path = "/usr/bin/chromedriver"
+        service = Service(executable_path=driver_path, log_path='/opt/airflow/logs/chromedriver.log')
+
+        # 버전 확인
+        print(f"ChromeDriver path: {driver_path}")
+        super().__init__(service=service, *args, **kwargs)
+
+        # driver_path = ChromeDriverManager().install()
         
         # 윈도우에서 실행 시 
         # correct_driver_path = os.path.join(os.path.dirname(driver_path), "chromedriver.exe") # 오류 출처 : https://private.tistory.com/178
         # super().__init__(*args, service=ChromeService(executable_path=correct_driver_path), **kwargs)
 
         # 맥에서 실행 시
-        super().__init__(*args, service=ChromeService(executable_path=driver_path), **kwargs)
+        # super().__init__(
+        #     *args, service=ChromeService(executable_path=driver_path), **kwargs
+        # )
 
+        # WSL 실행 시
+        # driver_path = "/home/yewon/job-interview-data/chrome_driver/chromedriver"
+        # super().__init__(*args, service=ChromeService(executable_path=driver_path), **kwargs)
+
+
+        
         # 네트워크 트래픽 캡처 범위 설정
         self.scopes = ['.*'] # 일단 모든 네트워크 트래픽을 캡처하도록 설정
         
 
-    def find_element_one(self, locator = By.CSS_SELECTOR, value: Optional[str] = None, timeout: int = 10) -> Optional[Callable[..., WebElement]]:
+    def find_element_one(
+        self, locator=By.CSS_SELECTOR, value: Optional[str] = None, timeout: int = 10
+    ) -> Optional[Callable[..., WebElement]]:
         """html 요소 찾기 (단일)
 
         Args:
@@ -61,7 +79,7 @@ class CustomizedDriver(wd_wire.Chrome):
             timeout (int, optional): Defaults to 10.
 
         Returns:
-            Optional[WebElement]: 
+            Optional[WebElement]:
         """
         try:
             elem = WebDriverWait(self, timeout).until(
@@ -69,10 +87,12 @@ class CustomizedDriver(wd_wire.Chrome):
             )
         except TimeoutException:
             return None
-        
+
         return elem
-        
-    def find_element_all(self, locator = By.CSS_SELECTOR, value: Optional[str]=None, timeout: int = 10) -> List[WebElement]:
+
+    def find_element_all(
+        self, locator=By.CSS_SELECTOR, value: Optional[str] = None, timeout: int = 10
+    ) -> List[WebElement]:
         """html 요소 찾기 (복수)
 
         Returns:
@@ -84,11 +104,10 @@ class CustomizedDriver(wd_wire.Chrome):
             )
         except TimeoutException:
             return []
-        
+
         return elem
-        
-    
-    def filter_network_log(self, **kwargs) -> Union[Request, DotDict]:
+
+    def filter_network_log(self, pat="", **kwargs) -> Union[Request, DotDict]:
         """네트워크 트래픽 필터링 (단일)
 
         Args:
@@ -101,29 +120,29 @@ class CustomizedDriver(wd_wire.Chrome):
         """
 
         # pat이 없을 경우 에러 발생
-        if not kwargs.get('pat', False):
-            raise TypeError("CustomizedDriver.capture_response() missing 1 required positional argument: 'pat'") 
+        # if not kwargs.get('pat', False):
+        if not pat:
+            raise TypeError(
+                "CustomizedDriver.capture_response() missing 1 required positional argument: 'pat'"
+            )
 
-        reset = kwargs.get('reset', False)
-        timeout = kwargs.get('timeout', 10)
+        reset = kwargs.get("reset", False)
+        timeout = kwargs.get("timeout", 10)
 
         try:
-            req = self.wait_for_request(pat=kwargs['pat'], timeout=timeout)
+            req = self.wait_for_request(pat=pat, timeout=timeout)
         except TimeoutException:
             # 패턴 미발견 시 시간 초과
-            req = DotDict({
-                'response':DotDict({
-                    'status_code': 408,
-                    'data': None
-                })
-            })
+            req = DotDict({"response": DotDict({"status_code": 408, "data": None})})
 
         if reset:
             del self.requests
 
         return req
 
-    def filter_network_log_all(self, **kwargs) -> Dict[str, Union[int, List[Request]]]:
+    def filter_network_log_all(
+        self, pat="", **kwargs
+    ) -> Dict[str, Union[int, List[Request]]]:
         """네트워크 트래픽 필터링 (복수)
 
         Args:
@@ -136,57 +155,49 @@ class CustomizedDriver(wd_wire.Chrome):
         """
 
         # pat이 없을 경우 에러 발생
-        if not kwargs.get('pat', False):
-            raise TypeError("CustomizedDriver.capture_response() missing 1 required positional argument: 'pat'") 
+        # if not kwargs.get('pat', False):
+        if not pat:
+            raise TypeError(
+                "CustomizedDriver.capture_response() missing 1 required positional argument: 'pat'"
+            )
 
-        reset = kwargs.get('reset', False)
-        timeout = kwargs.get('timeout', 10)
+        reset = kwargs.get("reset", False)
+        timeout = kwargs.get("timeout", 10)
 
-        reqs = DotDict({
-            'response':DotDict({
-                'status_code': 200, 
-                'data': []
-                })
-            })
+        reqs = DotDict({"response": DotDict({"status_code": 200, "data": []})})
 
         # reqs = DotDict({
         #     'status_code': 200,
         #     'data': []
         # })
 
-
         try:
-            found_req = self.wait_for_request(pat=kwargs['pat'], timeout=timeout)
+            found_req = self.wait_for_request(pat=pat, timeout=timeout)
         except TimeoutException:
             # 패턴 시간 초과
             found_req = False
 
-            reqs = DotDict({
-                'response':DotDict({
-                    'status_code': 408,
-                    'data': None
-                })
-            })
+            reqs = DotDict({"response": DotDict({"status_code": 408, "data": None})})
 
         if found_req:
             for req in self.requests:
                 # req.response is not None : response를 받은 경우에만(요청 성공 시에만) 고려
-                if req.response and re.search(kwargs['pat'], req.url):
+                if req.response and re.search(pat, req.url):
                     reqs.response.data.append(req)
-                
+
         if reset:
             del self.requests
 
         return reqs
-    
 
     def check_status_code(self, req):
-        """네트워크 트래픽의 status code 확인
-        """
-        assert req.response.status_code == 200, 'No response captured. Please capture response first.'
+        """네트워크 트래픽의 status code 확인"""
+        assert (
+            req.response.status_code == 200
+        ), "[func] check_status_code: No response captured. Please capture response first."
 
         # if not self.request.status_code == 408:
-            
+
         #     # 패턴 시간 초과
         #     response_dict = None
         #     # 에러 대신 로그 출력하도록 변경할 예정
@@ -195,17 +206,31 @@ class CustomizedDriver(wd_wire.Chrome):
         return True
 
     def parse_request(self, req):
-        """네트워크 트래픽 json 형태로 변환
-        """
-        assert req.response.status_code == 200, 'No response captured. Please capture response first.'
+        """네트워크 트래픽 json 형태로 변환"""
+        assert (
+            req.response.status_code == 200
+        ), "[func] parse_request: No response captured. Please capture response first."
 
         # 408 에러 시 headers 값이 안나오므로,,, json 형태 변환 에러 처리 필요
-            
-        # json 형태로 변환  
-        response_dict = json.loads(decode(req.response.body, req.response.headers.get('Content-Encoding', 'identity')).decode('utf-8')) 
-            
-            
+
+        # json 형태로 변환
+        response_dict = json.loads(
+            decode(
+                req.response.body,
+                req.response.headers.get("Content-Encoding", "identity"),
+            ).decode("utf-8")
+        )
+
         return response_dict
 
+    def decode_body(self, req):
+        """
+        네트워크 트래픽 body 디코딩
+        """
+        assert (
+            req.response.status_code == 200
+        ), "[func] decode_body: No response captured. Please capture response first."
 
-        
+        return decode(
+            req.response.body, req.response.headers.get("Content-Encoding", "identity")
+        ).decode("utf-8")

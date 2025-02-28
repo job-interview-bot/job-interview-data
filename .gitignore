@@ -9,6 +9,9 @@ crawling/employment_detail/__pycache__/
 __pycache__
 *.conf
 *.ps1
+*.deb
+*.chromedriver
+chromedriver
 
 # Airflow
 # Airflow configuration

@@ -8,11 +8,9 @@ import pandas as pd
 from urllib.parse import urlparse
 
 # .env 파일이 있는 경로 직접 지정
-# dotenv_path = os.path.join(os.path.dirname(__file__), "setting_object_storage/stand-alone/", ".env")
-# load_dotenv(dotenv_path)
+dotenv_path = os.path.join(os.path.dirname(__file__), "setting_object_storage/stand-alone/", ".env")
+load_dotenv(dotenv_path, verbose=True)
 
-# .env 파일 로드
-load_dotenv(verbose=True)
 
 # 환경 변수 가져오기
 MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT")

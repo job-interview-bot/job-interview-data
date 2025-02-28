@@ -12,3 +12,4 @@ python-dotenv
 apache-airflow
 pendulum == 2.1.2
 flask-session
+psycopg2-binary
