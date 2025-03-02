@@ -3,7 +3,7 @@
 # 로컬 스토리지 권한 설정
 echo "🚀 Setting permissions for mounted volumes..."
 
-# 권한을 777로 변경할 디렉토리 목록
+# 권한을 755로 변경할 디렉토리 목록
 DIRS=(
     "/home/yewon/job-interview-data/airflow/dags"
     "/home/yewon/job-interview-data/airflow/logs"
@@ -17,7 +17,7 @@ DIRS=(
 for dir in "${DIRS[@]}"; do
     if [ -d "$dir" ]; then
         echo "🔧 Changing permissions for $dir"
-        sudo chmod -R 777 "$dir"
+        sudo chmod -R 755로 "$dir"
         sudo chown -R "$(whoami)":"$(whoami)" "$dir"
     else
         echo "⚠️ Warning: Directory $dir does not exist. Skipping..."
