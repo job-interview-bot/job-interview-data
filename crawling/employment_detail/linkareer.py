@@ -11,8 +11,8 @@ import pandas as pd
 import sys, os
 import logging
 
-PAUSE_TIME = 3  # 대기 시간
-TRFIC_PAUSE_TIME = 10 # 트래픽 캡처 대기 시간
+PAUSE_TIME = 2  # 대기 시간
+TRFIC_PAUSE_TIME = 10  # 트래픽 캡처 대기 시간
 KST = timezone(timedelta(hours=9))
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -45,9 +45,11 @@ if __name__ == "__main__":
     options.add_argument('--disable-gpu')
     options.add_argument('--window-size=1920,1080')
     options.add_argument("--disable-notifications")  # 알림 비활성화
-    options.add_experimental_option("prefs", {
-        "profile.default_content_setting_values.notifications": 2  # 1: 허용, 2: 차단
-    })
+    options.add_experimental_option(
+        "prefs",
+        {"profile.default_content_setting_values.notifications": 2},  # 1: 허용, 2: 차단
+    )
+
     driver = wd.CustomizedDriver(options=options)
     driver.scopes = ["ScreenJobCategory", "RecruitList", "gqlScreenActivityDetail"]
 

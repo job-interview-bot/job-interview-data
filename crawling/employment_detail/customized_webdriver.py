@@ -29,6 +29,7 @@ from selenium.webdriver.chrome.service import Service
 
 class DotDict(dict):
     """dot(.)으로 속성처럼 접근 가능한 dict"""
+
     def __getattr__(self, key):
         return self[key]
 
@@ -65,9 +66,12 @@ class CustomizedDriver(wd_wire.Chrome):
 
 
         
+        super().__init__(
+            *args, service=ChromeService(executable_path=driver_path), **kwargs
+        )
+
         # 네트워크 트래픽 캡처 범위 설정
-        self.scopes = ['.*'] # 일단 모든 네트워크 트래픽을 캡처하도록 설정
-        
+        self.scopes = [".*"]  # 일단 모든 네트워크 트래픽을 캡처하도록 설정
 
     def find_element_one(
         self, locator=By.CSS_SELECTOR, value: Optional[str] = None, timeout: int = 10

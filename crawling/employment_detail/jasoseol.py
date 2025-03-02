@@ -13,7 +13,7 @@ from selenium.webdriver.support import expected_conditions as EC
 import logging
 
 
-PAUSE_TIME = 2  # 대기 시간
+PAUSE_TIME = 3  # 대기 시간
 TRFIC_PAUSE_TIME = 20 # 트래픽 캡처 대기 시간
 KST = timezone(timedelta(hours=9))
 
@@ -36,30 +36,8 @@ logging.basicConfig(
 
 if __name__ == "__main__":
     # 채용공고 IT/인터넷 카테고리 코드
-    category_code = set(
-        {
-            160,
-            164,
-            165,
-            166,
-            167,
-            168,
-            169,
-            170,
-            171,
-            172,
-            173,
-            174,
-            175,
-            176,
-            177,
-            178,
-            179,
-            180,
-            181,
-            182,
-        }
-    )
+    category_code = set({160,164,165,166,167,168,169,170,171,172,173,174,175,176,177,178,179,180,181,182})
+
     options = wd.ChromeOptions()
 
     # Chrome 옵션 설정
@@ -70,14 +48,15 @@ if __name__ == "__main__":
     options.add_argument('--disable-gpu')
     options.add_argument('--window-size=1920,1080')
     options.add_argument("--disable-notifications")  # 알림 비활성화
-    options.add_experimental_option("prefs", {
-        "profile.default_content_setting_values.notifications": 2  # 1: 허용, 2: 차단
-    })
+    options.add_experimental_option(
+        "prefs",
+        {"profile.default_content_setting_values.notifications": 2},  # 1: 허용, 2: 차단
+    )
 
     driver = wd.CustomizedDriver(options=options)
-    driver.scopes = ['calendar_list', 'get', 'company-reports']
+    driver.scopes = ["calendar_list", "get", "company-reports"]
 
-    url = 'https://jasoseol.com/recruit'
+    url = "https://jasoseol.com/recruit"
 
     driver.get(url)
     driver.implicitly_wait(10)
@@ -87,7 +66,7 @@ if __name__ == "__main__":
         pat=r"calendar_list\.json", timeout=TRFIC_PAUSE_TIME
     )
     recruit_dict = driver.parse_request(req)
-    
+
     recruits_list = []
     # 현재 크롤링 시작 시간
     now = datetime.now(KST)
@@ -96,32 +75,30 @@ if __name__ == "__main__":
     time_24h_ago = now - timedelta(hours=24)
 
     for item in recruit_dict['employment']:
-        group_id = [
-            map(lambda x: x["group_id"], x["duty_groups"]) for x in item["employments"]
-        ]
-        group_id = set(chain(*group_id))  # IT/인터넷 카테고리 코드가 있는지 확인
-
+        group_id = [map(lambda x : x['group_id'], x['duty_groups']) for x in item['employments']]
+        group_id = set(chain(*group_id)) # IT/인터넷 카테고리 코드가 있는지 확인
+        
         if group_id & category_code:
-            recruits_list.append(
-                {
-                    "채용사이트명": "자소설",
-                    "채용사이트_공고id": item["id"],
-                    "직무_대분류": 0,  # [합의 필요] 서연's 코드 : 0
-                    "직무_소분류": "임시",
-                    "경력사항": "임시",  # 코드화되어있어서 일단 못찾음. 확인 필요함
-                    "회사명": item["name"],
-                    "근무지역(회사주소)": "임시",
-                    "회사로고이미지": None,
-                    "공고제목": item["title"],
-                    "공고본문_타입": "img",  # [합의 필요] 예원's -> 채용 형태로 추정함 : item['recruit_type']
-                    "공고본문_raw": None,
-                    "공고출처url": None,
-                    "모집시작일": item["start_time"],
-                    "모집마감일": item["end_time"],  # "2025-02-17T16:50:16.000+09:00"
-                    "공고게시일": None,
-                }
-            )
+            recruits_list.append({
+                "채용사이트명": "자소설",
+                "채용사이트_공고id": item['id'],
+                "직무_대분류": 0, # [합의 필요] 서연's 코드 : 0
+                "직무_소분류": "임시",
+                "경력사항": "임시", # 코드화되어있어서 일단 못찾음. 확인 필요함
 
+                "회사명": item['name'],
+                "근무지역(회사주소)": "임시",
+                "회사로고이미지": None,
+                
+                "공고제목": item['title'],
+                "공고본문_타입": 'img', # [합의 필요] 예원's -> 채용 형태로 추정함 : item['recruit_type']
+                "공고본문_raw": None,
+                "공고출처url": None,
+
+                "모집시작일": item['start_time'],
+                "모집마감일": item['end_time'], # "2025-02-17T16:50:16.000+09:00"
+                "공고게시일": None
+            })
 
     # 채용공고 별 상세정보
 
@@ -146,10 +123,9 @@ if __name__ == "__main__":
 
             soup = BeautifulSoup(detail_data["content"], "html.parser")
 
-            item["공고게시일"] = detail_data["created_at"]
-            post_date = datetime.strptime(item["공고게시일"], "%Y-%m-%dT%H:%M:%S.%f%z")
-            post_date = post_date.replace(tzinfo=KST)
-            
+            item['공고게시일'] = detail_data['created_at']
+            post_date = datetime.strptime(item['공고게시일'], "%Y-%m-%dT%H:%M:%S.%f%z")
+
             # 24시간 제한
             if now - post_date <= timedelta(hours=24):
                 # 이미지 태그 가져오기
@@ -186,13 +162,11 @@ if __name__ == "__main__":
     # 결과 : recruits_list에 담김.. 형식은 recruits_list 참고
     recruits_result = pd.DataFrame(recruits_list)
     recruits_result.drop(remove_idx, inplace=True)
-    
+
     # 저장할 폴더 경로
-    folder_path = os.path.join(BASE_DIR, f'results/{today_str}')
+    folder_path = f'results/{today_str}'
     os.makedirs(folder_path, exist_ok=True)
 
     # CSV 파일 저장 (UTF-8 인코딩, 인덱스 없이)
-    recruits_result.to_csv(os.path.join(folder_path, f'jasoseol_{today_str}.csv'), index=False, encoding='utf-8')
-    logging.info(f"## {os.path.join(folder_path, f'jasoseol_{today_str}.csv')} 저장 완료")
-
-    driver.close()
+    recruits_result.to_csv(f'{folder_path}/jasoseol_{today_str}.csv', index=False, encoding='utf-8')
+    print(f"## {folder_path}/jasoseol_{today_str}.csv 저장 완료")

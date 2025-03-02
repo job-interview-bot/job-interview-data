@@ -14,7 +14,7 @@ import sys, os
 import logging
 
 PAUSE_TIME = 2  # 대기 시간
-TRFIC_PAUSE_TIME = 30 # 트래픽 캡처 대기 시간
+TRFIC_PAUSE_TIME = 30  # 트래픽 캡처 대기 시간
 KST = timezone(timedelta(hours=9))
 
 
@@ -49,10 +49,11 @@ if __name__ == "__main__":
     options.add_argument('--disable-gpu')
     options.add_argument('--window-size=1920,1080')
     options.add_argument("--disable-notifications")  # 알림 비활성화
-    options.add_experimental_option("prefs", {
-        "profile.default_content_setting_values.notifications": 2  # 1: 허용, 2: 차단
-    })
-    
+    options.add_experimental_option(
+        "prefs",
+        {"profile.default_content_setting_values.notifications": 2},  # 1: 허용, 2: 차단
+    )
+
     driver = wd.CustomizedDriver(options=options)
     driver.scopes = ["results", "details"]
 
@@ -183,7 +184,6 @@ if __name__ == "__main__":
             # print(e.with_traceback())
             continue  # 다음 아이템으로 넘어감
 
-
     # 결과 : recruits_list에 담김.. 형식은 recruits_list 참고
     recruits_result = pd.DataFrame(recruits_list)
     recruits_result.drop(remove_idx, inplace=True)
@@ -196,3 +196,5 @@ if __name__ == "__main__":
     
     recruits_result.to_csv(os.path.join(folder_path, f'wanted_{today_str}.csv'), index=False, encoding='utf-8')
     logging.info(f"## {os.path.join(folder_path, f'wanted_{today_str}.csv')} 저장 완료")
+
+    driver.close()

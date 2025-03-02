@@ -12,7 +12,7 @@ import sys, os
 import logging
 
 PAUSE_TIME = 3  # 대기 시간
-TRFIC_PAUSE_TIME = 10 # 트래픽 캡처 대기 시간
+TRFIC_PAUSE_TIME = 10  # 트래픽 캡처 대기 시간
 KST = timezone(timedelta(hours=9))
 
 
@@ -35,7 +35,7 @@ logging.basicConfig(
 
 if __name__ == "__main__":
 
-    data_size = 50  # 수집할 채용공고 개수
+    data_size = 11  # 수집할 채용공고 개수
     category_codes = [  # IT개발/인터넷 코드
         "AI_%EB%8D%B0%EC%9D%B4%ED%84%B0",  # AI_데이터
         "IT%EA%B0%9C%EB%B0%9C_%EB%8D%B0%EC%9D%B4%ED%84%B0",  # IT개발_데이터
@@ -146,9 +146,10 @@ if __name__ == "__main__":
     options.add_argument('--disable-gpu')
     options.add_argument('--window-size=1920,1080')
     options.add_argument("--disable-notifications")  # 알림 비활성화
-    options.add_experimental_option("prefs", {
-        "profile.default_content_setting_values.notifications": 2  # 1: 허용, 2: 차단
-    })
+    options.add_experimental_option(
+        "prefs",
+        {"profile.default_content_setting_values.notifications": 2},  # 1: 허용, 2: 차단
+    )
 
     driver = wd.CustomizedDriver(options=options)
 
@@ -160,16 +161,13 @@ if __name__ == "__main__":
 
             time.sleep(PAUSE_TIME)
 
-            req = driver.filter_network_log(pat=f"{item['채용사이트_공고id']}")
+            req = driver.filter_network_log(f"{item['채용사이트_공고id']}")
             detail_source = driver.decode_body(req)
 
             detail_html = BeautifulSoup(detail_source, "html.parser")
             detail_html = detail_html.select_one(
                 r"#root > main > div.flex.w-full.px-4.xl\:justify-center.xl\:gap-\[120px\].xl\:px-36 > div.flex.w-full.flex-col.items-center > div:nth-child(5)"
             )
-            if detail_html is None:
-                logging.warning(f"Element not found for item_id({item['채용사이트_공고id']})")
-                continue  # 또는 기본값 할당
             # body > main > div.flex.w-full.px-4.xl\:justify-center.xl\:gap-\[120px\].xl\:px-36 > div.flex.w-full.flex-col.items-center > div:nth-child(5)
 
             # if detail_html.select_one('div.flex'): # 그룹바이 어쩌구는 div가 하나 더 생겨버림. 별도 처리..
@@ -206,10 +204,8 @@ if __name__ == "__main__":
             # print(e.with_traceback())
             continue  # 다음 아이템으로 넘어감
 
-
     # 결과 : recruits_list에 담김.. 형식은 recruits_list 참고
     recruits_result = pd.DataFrame(recruits_list)
-
 
     # 저장할 폴더 경로
     folder_path = os.path.join(BASE_DIR, f'results/{today_str}')
@@ -218,3 +214,5 @@ if __name__ == "__main__":
     # CSV 파일 저장 (UTF-8 인코딩, 인덱스 없이)
     recruits_result.to_csv(os.path.join(folder_path, f'zighang_{today_str}.csv'), index=False, encoding='utf-8')
     logging.info(f"## {os.path.join(folder_path, f'zighang_{today_str}.csv')} 저장 완료")
+
+    driver.close()
