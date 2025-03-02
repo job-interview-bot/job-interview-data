@@ -12,9 +12,10 @@ import re
 from datetime import datetime, timedelta, timezone
 import sys, os
 
-PAUSE_TIME = 2  # 대기 시간
+PAUSE_TIME = 1.5  # 대기 시간
 TRFIC_PAUSE_TIME = 30  # 트래픽 캡처 대기 시간
 KST = timezone(timedelta(hours=9))
+
 
 if __name__ == "__main__":
     category_code = 518  # IT개발/인터넷 코드
@@ -28,14 +29,15 @@ if __name__ == "__main__":
         "prefs",
         {"profile.default_content_setting_values.notifications": 2},  # 1: 허용, 2: 차단
     )
+    options.page_load_strategy = "none"  # 로딩 무시 옵션 추가
 
     driver = wd.CustomizedDriver(options=options)
     driver.scopes = ["results", "details"]
 
-    url = f"https://www.wanted.co.kr/wdlist/{category_code}?country=kr&job_sort=job.latest_order&years=0&locations=all"
+    url = f"https://www.wanted.co.kr/wdlist/{category_code}?country=kr&job_sort=job.latest_order&years=-1&locations=all"
 
     driver.get(url)
-    driver.implicitly_wait(5)
+    driver.implicitly_wait(10)
 
     recruits_list = []
 
@@ -50,8 +52,9 @@ if __name__ == "__main__":
     reqs = None
 
     while True:
-        time.sleep(PAUSE_TIME)
         try:
+            time.sleep(PAUSE_TIME)
+
             reqs = driver.filter_network_log_all(
                 pat=r"results", timeout=TRFIC_PAUSE_TIME
             )
@@ -61,20 +64,28 @@ if __name__ == "__main__":
             if prev_page_len == now_page_len:
                 break
 
-            if prev_page_len > 3:
-                break
+            # 부분 수집용
+            # if prev_page_len > 5:
+            #     break
 
             prev_page_len = now_page_len
 
             # 스크롤을 아래로 내리기
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+
         except AssertionError as e:
-            print(f"[AssertionError] : {e}")
+            print(f"[AssertionError]: {e}")
             continue  # 다음 아이템으로 넘어감
 
     # 채용공고 리스트
     for req in reqs.response.data:
         recruits_dict = driver.parse_request(req)
+
+        # # 더미데이터 뽑기용
+        # if len(recruits_list) >= 100:
+        #     print(len(recruits_list))
+        #     break
+
         for item in recruits_dict["data"]:
             recruits_list.append(
                 {

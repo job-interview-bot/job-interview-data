@@ -1,3 +1,5 @@
+## detail
+
 import customized_webdriver as wd
 from bs4 import BeautifulSoup
 
@@ -51,6 +53,7 @@ if __name__ == "__main__":
         "prefs",
         {"profile.default_content_setting_values.notifications": 2},  # 1: 허용, 2: 차단
     )
+    options.page_load_strategy = "none"  # 로딩 무시 옵션 추가
 
     driver = wd.CustomizedDriver(options=options)
     driver.scopes = ["calendar_list", "get", "company-reports"]
@@ -72,7 +75,9 @@ if __name__ == "__main__":
     today_str = now.strftime("%Y%m%d")
     print(f'## {now.strftime("%Y%m%d")} - 자소설 사이트 크롤링 시작 ##')
     time_24h_ago = now - timedelta(hours=24)
-
+    # 채용공고 리스트 - 2024.11.29 부터 시작
+    # 오늘의 채용공고만 가져오는 방식으로 변경
+    # 초기 시작에는 이전 1달 크롤링
     for item in recruit_dict["employment"]:
         group_id = [
             map(lambda x: x["group_id"], x["duty_groups"]) for x in item["employments"]
@@ -84,7 +89,7 @@ if __name__ == "__main__":
                 {
                     "채용사이트명": "자소설",
                     "채용사이트_공고id": item["id"],
-                    "직무_대분류": 0,  # [합의 필요] 서연's 코드 : 0
+                    "직무_대분류": "IT/인터넷",  # [합의 필요] 서연's 코드 : 0
                     "직무_소분류": "임시",
                     "경력사항": "임시",  # 코드화되어있어서 일단 못찾음. 확인 필요함
                     "회사명": item["name"],
@@ -100,6 +105,13 @@ if __name__ == "__main__":
                 }
             )
 
+    # 자소설은 공고게시일/모집시작일 기준으로 오래된 순으로 정렬되는 것 같음. 최신순 수집을 위해 reverse 해주기
+    recruits_list.reverse()
+
+    # # 더미데이터 뽑기용
+    # recruits_list = recruits_list[:100] if len(recruits_list) > 100 else recruits_list
+    # print(len(recruits_list))
+
     # 채용공고 별 상세정보
 
     remove_idx = []
@@ -112,7 +124,7 @@ if __name__ == "__main__":
             )
 
             req = driver.filter_network_log(
-                pat="get\.json", timeout=TRFIC_PAUSE_TIME, reset=True
+                pat=r"get\.json", timeout=TRFIC_PAUSE_TIME, reset=True
             )
             assert req is not None, "No network request matched the pattern."
             assert (
@@ -146,6 +158,7 @@ if __name__ == "__main__":
 
                 item["공고본문"] = img_src
                 item["공고출처url"] = detail_data["employment_page_url"]
+                item["공고게시일"] = detail_data["created_at"]
                 # company-reports(get)에 회사 주소 정보 있는데, company_information.json에서 more = true 면 주소정보가 날라오는 듯
                 # 테스트 필요함
                 # company-reports는 리스트 형태, 원소['address'] 가 주소값

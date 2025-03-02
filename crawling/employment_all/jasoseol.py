@@ -1,3 +1,5 @@
+## all
+
 import customized_webdriver as wd
 from bs4 import BeautifulSoup
 
@@ -6,11 +8,14 @@ import time
 from datetime import datetime, timedelta, timezone
 import pandas as pd
 import sys, os
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
-PAUSE_TIME = 1.5  # 대기 시간
+PAUSE_TIME = 2  # 대기 시간
 TRFIC_PAUSE_TIME = 20  # 트래픽 캡처 대기 시간
 KST = timezone(timedelta(hours=9))
-
 
 if __name__ == "__main__":
     # 채용공고 IT/인터넷 카테고리 코드

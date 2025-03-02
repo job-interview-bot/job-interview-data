@@ -10,13 +10,16 @@ import pandas as pd
 from datetime import datetime, timedelta, timezone
 import sys, os
 
-PAUSE_TIME = 3  # 대기 시간
-TRFIC_PAUSE_TIME = 10  # 트래픽 캡처 대기 시간
+PAUSE_TIME = (
+    1  # 대기 시간 : 1로 하니까 트래픽 과부화옴(503에러 발생). 적어도 2초 이상 줘야할 듯
+)
+TRFIC_PAUSE_TIME = 30  # 트래픽 캡처 대기 시간
 KST = timezone(timedelta(hours=9))
+
 
 if __name__ == "__main__":
 
-    data_size = 11  # 수집할 채용공고 개수
+    data_size = 1000  # 수집할 채용공고 개수
     category_codes = [  # IT개발/인터넷 코드
         "AI_%EB%8D%B0%EC%9D%B4%ED%84%B0",  # AI_데이터
         "IT%EA%B0%9C%EB%B0%9C_%EB%8D%B0%EC%9D%B4%ED%84%B0",  # IT개발_데이터
@@ -126,6 +129,7 @@ if __name__ == "__main__":
         "prefs",
         {"profile.default_content_setting_values.notifications": 2},  # 1: 허용, 2: 차단
     )
+    options.page_load_strategy = "none"  # 로딩 무시 옵션 추가
 
     driver = wd.CustomizedDriver(options=options)
 
