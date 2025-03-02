@@ -76,6 +76,11 @@ class CustomizedDriver(wd_wire.Chrome):
     def find_element_one(
         self, locator=By.CSS_SELECTOR, value: Optional[str] = None, timeout: int = 10
     ) -> Optional[Callable[..., WebElement]]:
+        self.scopes = [".*"]  # 일단 모든 네트워크 트래픽을 캡처하도록 설정
+
+    def find_element_one(
+        self, locator=By.CSS_SELECTOR, value: Optional[str] = None, timeout: int = 10
+    ) -> Optional[Callable[..., WebElement]]:
         """html 요소 찾기 (단일)
 
         Args:
@@ -83,6 +88,7 @@ class CustomizedDriver(wd_wire.Chrome):
             timeout (int, optional): Defaults to 10.
 
         Returns:
+            Optional[WebElement]:
             Optional[WebElement]:
         """
         try:
@@ -92,7 +98,12 @@ class CustomizedDriver(wd_wire.Chrome):
         except TimeoutException:
             return None
 
+
         return elem
+
+    def find_element_all(
+        self, locator=By.CSS_SELECTOR, value: Optional[str] = None, timeout: int = 10
+    ) -> List[WebElement]:
 
     def find_element_all(
         self, locator=By.CSS_SELECTOR, value: Optional[str] = None, timeout: int = 10
@@ -109,7 +120,10 @@ class CustomizedDriver(wd_wire.Chrome):
         except TimeoutException:
             return []
 
+
         return elem
+
+    def filter_network_log(self, pat="", **kwargs) -> Union[Request, DotDict]:
 
     def filter_network_log(self, pat="", **kwargs) -> Union[Request, DotDict]:
         """네트워크 트래픽 필터링 (단일)
