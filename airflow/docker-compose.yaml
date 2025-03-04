@@ -26,7 +26,7 @@ services:
     container_name: airflow_webserver
     user: root
     command: bash -c "mkdir -p /opt/airflow/results /opt/airflow/crawling/employment_detail /opt/airflow/setting_object_storage /opt/airflow/logs \
-        && chmod -R 755 /opt/airflow \
+        && chmod -R 777 /opt/airflow \
         && airflow db upgrade \
         && airflow webserver"
     depends_on:
@@ -55,6 +55,7 @@ services:
       - /home/yewon/job-interview-data/crawling/results:/opt/airflow/crawling/results
       - /home/yewon/job-interview-data/crawling/employment_detail:/opt/airflow/crawling/employment_detail
       - /home/yewon/job-interview-data/setting_object_storage:/opt/airflow/setting_object_storage
+      - /home/yewon/job-interview-data/crawling/logs:/opt/airflow/crawling/logs
 
     networks:
       - airflow_network
@@ -64,8 +65,8 @@ services:
     container_name: airflow_scheduler
     user: root
     command: bash -c "mkdir -p /opt/airflow/results /opt/airflow/crawling/employment_detail /opt/airflow/setting_object_storage /opt/airflow/logs \
-        && chmod -R 755 /opt/airflow \
-        && chmod -R 755 /usr/local/bin/ \
+        && chmod -R 777 /opt/airflow \
+        && chmod -R 777 /usr/local/bin/ \
         && airflow scheduler"
     restart: unless-stopped
     depends_on:
@@ -95,6 +96,7 @@ services:
       - /home/yewon/job-interview-data/crawling/results:/opt/airflow/crawling/results
       - /home/yewon/job-interview-data/crawling/employment_detail:/opt/airflow/crawling/employment_detail
       - /home/yewon/job-interview-data/setting_object_storage:/opt/airflow/setting_object_storage
+      - /home/yewon/job-interview-data/crawling/logs:/opt/airflow/crawling/logs
 
 
     networks:

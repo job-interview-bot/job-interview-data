@@ -66,9 +66,9 @@ class CustomizedDriver(wd_wire.Chrome):
 
 
         
-        super().__init__(
-            *args, service=ChromeService(executable_path=driver_path), **kwargs
-        )
+        # super().__init__(
+        #     *args, service=ChromeService(executable_path=driver_path), **kwargs
+        # )
 
         # 네트워크 트래픽 캡처 범위 설정
         self.scopes = [".*"]  # 일단 모든 네트워크 트래픽을 캡처하도록 설정
@@ -101,9 +101,6 @@ class CustomizedDriver(wd_wire.Chrome):
 
         return elem
 
-    def find_element_all(
-        self, locator=By.CSS_SELECTOR, value: Optional[str] = None, timeout: int = 10
-    ) -> List[WebElement]:
 
     def find_element_all(
         self, locator=By.CSS_SELECTOR, value: Optional[str] = None, timeout: int = 10
@@ -123,7 +120,6 @@ class CustomizedDriver(wd_wire.Chrome):
 
         return elem
 
-    def filter_network_log(self, pat="", **kwargs) -> Union[Request, DotDict]:
 
     def filter_network_log(self, pat="", **kwargs) -> Union[Request, DotDict]:
         """네트워크 트래픽 필터링 (단일)

@@ -6,6 +6,8 @@ from io import BytesIO
 import requests
 import pandas as pd
 from urllib.parse import urlparse
+import logging
+
 
 # .env 파일이 있는 경로 직접 지정
 dotenv_path = os.path.join(os.path.dirname(__file__), "setting_object_storage/stand-alone/", ".env")
@@ -16,6 +18,22 @@ load_dotenv(dotenv_path, verbose=True)
 MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT")
 MINIO_ROOT_USER = os.getenv("MINIO_ROOT_USER")
 MINIO_ROOT_PASSWORD = os.getenv("MINIO_ROOT_PASSWORD")
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+log_dir = os.path.join(BASE_DIR, "logs/")
+if not os.path.exists(log_dir):
+    os.makedirs(log_dir, exist_ok=True)
+
+log_file = os.path.join(log_dir, 'dag.log')
+# 기존 핸들러에 추가하거나 기본 설정 재구성
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(log_file),
+        logging.StreamHandler()
+    ]
+)
 
 
 def get_file_extension(image_url):

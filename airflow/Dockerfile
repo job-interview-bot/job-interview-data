@@ -43,7 +43,7 @@ RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
 # 권한 및 환경 설정
 USER root
-RUN chmod 755 /usr/bin/chromedriver && \
+RUN chmod 777 /usr/bin/chromedriver && \
     rm -rf /var/lib/apt/lists/*
 
 USER airflow

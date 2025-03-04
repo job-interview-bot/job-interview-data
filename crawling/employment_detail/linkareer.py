@@ -22,7 +22,13 @@ log_dir = os.path.join(BASE_DIR, "logs/")
 if not os.path.exists(log_dir):
     os.makedirs(log_dir, exist_ok=True)
 
-log_file = os.path.join(log_dir, 'dag.log')
+now = datetime.now(KST)
+today_str = now.strftime("%Y%m%d")
+
+
+log_file = os.path.join(log_dir, f'linkareer_{today_str}_dag.log')
+
+
 # 기존 핸들러에 추가하거나 기본 설정 재구성
 logging.basicConfig(
     level=logging.INFO,
@@ -230,3 +236,4 @@ if __name__ == "__main__":
     # CSV 파일 저장 (UTF-8 인코딩, 인덱스 없이)
     recruits_result.to_csv(os.path.join(folder_path, f'linkareer_{today_str}.csv'), index=False, encoding='utf-8')
     logging.info(f"## {os.path.join(folder_path, f'linkareer_{today_str}.csv')} 저장 완료")
+    driver.close()

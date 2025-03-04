@@ -4,17 +4,22 @@ from airflow.utils.task_group import TaskGroup
 from datetime import datetime
 import subprocess
 import logging
+from datetime import datetime, timedelta, timezone
 
 import os
 
 # /opt/airflow/ 위치에서 실행
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+KST = timezone(timedelta(hours=9))
 
 log_dir = os.path.join(BASE_DIR, "logs/")
 if not os.path.exists(log_dir):
     os.makedirs(log_dir, exist_ok=True)
 
-log_file = os.path.join(log_dir, 'dag.log')
+now = datetime.now(KST)
+today_str = now.strftime("%Y%m%d")
+
+log_file = os.path.join(log_dir, f'{today_str}_dag.log')
 # 기존 핸들러에 추가하거나 기본 설정 재구성
 logging.basicConfig(
     level=logging.INFO,
@@ -25,12 +30,15 @@ logging.basicConfig(
     ]
 )
 
-def run_script(script_name):
-    script_path = os.path.join(BASE_DIR, script_name)  # 절대 경로 변환
-    logging.info(f"Executing script: {script_path}")
+def run_script(script_name, extra_args=None):
+    script_path = script_name if os.path.isabs(script_name) else os.path.join(BASE_DIR, script_name)
+    command = ["python", script_path]
+    if extra_args:
+        command.extend(extra_args)
+    logging.info(f"Executing command: {command}")
     logging.info(f"Current working directory: {os.getcwd()}")
     try:
-        result = subprocess.run(["python", script_path], check=True, capture_output=True, text=True)
+        result = subprocess.run(command, check=True, capture_output=True, text=True)
         logging.info(f"Script output: {result.stdout}")
         logging.info(f"Script error (if any): {result.stderr}")
         
@@ -62,7 +70,7 @@ with TaskGroup("crawling_tasks", dag=dag) as crawling_tasks:
     crawl_scripts = [
         os.path.join(BASE_DIR, "crawling/employment_detail/jasoseol.py"),
         os.path.join(BASE_DIR, "crawling/employment_detail/linkareer.py"),
-        os.path.join(BASE_DIR, "crawling/employment_detail/wanted.py"),
+        # os.path.join(BASE_DIR, "crawling/employment_detail/wanted.py"), # 여전히 AssertionError 떠서 우선  빼고 진행
         os.path.join(BASE_DIR, "crawling/employment_detail/zighang.py")
     ]
 
@@ -90,7 +98,7 @@ minio_upload = PythonOperator(
         "script_name": os.path.join(BASE_DIR, "setting_object_storage/stand-alone/minio_upload.py"),
         "extra_args": [
             "--bucket_name", "job-data",
-            "--directory_path", os.path.join(BASE_DIR, "crawling/results")
+            "--directory_path", os.path.join(BASE_DIR, f"crawling/results/{today_str}")
         ]
     },
     dag=dag,

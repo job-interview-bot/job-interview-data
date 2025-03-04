@@ -23,7 +23,10 @@ log_dir = os.path.join(BASE_DIR, "logs/")
 if not os.path.exists(log_dir):
     os.makedirs(log_dir, exist_ok=True)
 
-log_file = os.path.join(log_dir, 'dag.log')
+now = datetime.now(KST)
+today_str = now.strftime("%Y%m%d")
+
+log_file = os.path.join(log_dir, f'zighang_{today_str}_dag.log')
 # 기존 핸들러에 추가하거나 기본 설정 재구성
 logging.basicConfig(
     level=logging.INFO,
