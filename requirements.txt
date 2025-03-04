@@ -10,3 +10,7 @@ docker-compose
 boto3
 python-dotenv
 apache-airflow
+langchain_community==0.3.16
+azure-ai-documentintelligence==1.0.0
+azure-core==1.32.0
+Pillow==10.1.0
