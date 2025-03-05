@@ -12,10 +12,33 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+import logging
 
-PAUSE_TIME = 2  # 대기 시간
-TRFIC_PAUSE_TIME = 20  # 트래픽 캡처 대기 시간
+
+PAUSE_TIME = 5  # 대기 시간
+TRFIC_PAUSE_TIME = 40  # 트래픽 캡처 대기 시간
 KST = timezone(timedelta(hours=9))
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+log_dir = os.path.join(BASE_DIR, "logs/")
+if not os.path.exists(log_dir):
+    os.makedirs(log_dir, exist_ok=True)
+
+now = datetime.now(KST)
+today_str = now.strftime("%Y%m%d")
+
+log_file = os.path.join(log_dir, f'jasoseol_{today_str}_dag.log')
+
+# 기존 핸들러에 추가하거나 기본 설정 재구성
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(log_file),
+        logging.StreamHandler()
+    ]
+)
+
 
 if __name__ == "__main__":
     # 채용공고 IT/인터넷 카테고리 코드
@@ -47,33 +70,49 @@ if __name__ == "__main__":
     options = wd.ChromeOptions()
 
     # Chrome 옵션 설정
-    # options.add_argument('--headless')
+    # 필수 옵션 추가
+    options.add_argument('--headless')  # GUI 없이 실행
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
+    options.add_argument('--disable-gpu')
+    options.add_argument('--window-size=1920,1080')
     options.add_argument("--disable-notifications")  # 알림 비활성화
+    options.add_argument('--max-connections-per-server=5')
+    options.add_argument('--disable-quic')  # QUIC 프로토콜 비활성화
+    
     options.add_experimental_option(
         "prefs",
         {"profile.default_content_setting_values.notifications": 2},  # 1: 허용, 2: 차단
     )
     options.page_load_strategy = "none"  # 로딩 무시 옵션 추가
 
-    driver = wd.CustomizedDriver(options=options)
-    driver.scopes = ["calendar_list", "get", "company-reports"]
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            driver = wd.CustomizedDriver(options=options)
+            driver.scopes = ["calendar_list", "get", "company-reports"]
 
-    url = "https://jasoseol.com/recruit"
+            url = "https://jasoseol.com/recruit"
 
-    driver.get(url)
-    driver.implicitly_wait(10)
+            driver.get(url)
+            driver.implicitly_wait(10)
 
-    # 채용공고 메타데이터 트래픽 캡처
-    req = driver.filter_network_log(
-        pat=r"calendar_list\.json", timeout=TRFIC_PAUSE_TIME
-    )
-    recruit_dict = driver.parse_request(req)
+            # 채용공고 메타데이터 트래픽 캡처
+            req = driver.filter_network_log(
+                pat=r"calendar_list\.json", timeout=TRFIC_PAUSE_TIME
+            )
+            recruit_dict = driver.parse_request(req)
+        except Exception as e:
+            logging.error(e)
+            if attempt == max_retries -1:
+                raise
+            driver.quit()
+            time.sleep(5)
 
     recruits_list = []
+
     # 현재 크롤링 시작 시간
-    now = datetime.now(KST)
-    today_str = now.strftime("%Y%m%d")
-    print(f'## {now.strftime("%Y%m%d")} - 자소설 사이트 크롤링 시작 ##')
+    logging.info(f'## {today_str} - 자소설 사이트 크롤링 시작 ##')
     time_24h_ago = now - timedelta(hours=24)
     # 채용공고 리스트 - 2024.11.29 부터 시작
     # 오늘의 채용공고만 가져오는 방식으로 변경
@@ -168,7 +207,7 @@ if __name__ == "__main__":
                 continue
 
         except Exception as e:
-            print(f"[{type(e).__name__}] item_id({item['채용사이트_공고id']}): {e}")
+            logging.error(f"[{type(e).__name__}] item_id({item['채용사이트_공고id']}): {e}")
             # print(e.with_traceback())
             continue  # 다음 아이템으로 넘어감
 
@@ -177,13 +216,10 @@ if __name__ == "__main__":
     recruits_result.drop(remove_idx, inplace=True)
 
     # 저장할 폴더 경로
-    folder_path = f"results/{today_str}"
+    folder_path = os.path.join(BASE_DIR, f'results/{today_str}')
     os.makedirs(folder_path, exist_ok=True)
 
     # CSV 파일 저장 (UTF-8 인코딩, 인덱스 없이)
-    recruits_result.to_csv(
-        f"{folder_path}/jasoseol_{today_str}.csv", index=False, encoding="utf-8"
-    )
-    print(f"## {folder_path}/jasoseol_{today_str}.csv 저장 완료")
-
+    recruits_result.to_csv(os.path.join(folder_path, f'jasoseol_{today_str}.csv'), index=False, encoding='utf-8')
+    logging.info(f"## {os.path.join(folder_path, f'jasoseol_{today_str}.csv')} 저장 완료")
     driver.close()

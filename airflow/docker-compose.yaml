@@ -1,0 +1,138 @@
+services:
+  postgres_airflow:
+    image: postgres:13
+    container_name: postgres_airflow
+    hostname: postgres_airflow
+    env_file:
+      - ../.env
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    networks:
+      - airflow_network
+    volumes:
+      - /home/yewon/job-interview-data/airflow/db/data:/var/lib/postgresql/data
+      - /home/yewon/job-interview-data/airflow/db/initdb.d/:/docker-entrypoint-initdb.d/
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB} && psql -U ${POSTGRES_USER} -d airflow -c 'SELECT 1'"]
+      interval: 5s
+      retries: 10  # 재시도 횟수 증가
+      start_period: 20s  # 시작 대기 시간 증가
+    
+
+  airflow_webserver:
+    build: .
+    container_name: airflow_webserver
+    user: root
+    command: bash -c "mkdir -p /opt/airflow/results /opt/airflow/crawling/employment_detail /opt/airflow/setting_object_storage /opt/airflow/logs \
+        && chmod -R 777 /opt/airflow \
+        && airflow db upgrade \
+        && airflow webserver"
+    depends_on:
+      postgres_airflow:
+        condition: service_healthy
+    env_file:
+      - ../.env
+    environment:
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=${AIRFLOW__DATABASE__SQL_ALCHEMY_CONN}
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__LOGGING__BASE_LOG_FOLDER=/opt/airflow/logs
+      - AIRFLOW__CORE__DEFAULT_TIMEZONE=Asia/Seoul
+    ports:
+      - "8080:8080"  # Airflow 기본 포트
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail http://localhost:8080/health || exit 1"]
+      interval: 10s
+      retries: 5
+      start_period: 20s
+
+    restart: unless-stopped
+    volumes:
+      - /home/yewon/job-interview-data/airflow/dags:/opt/airflow/dags
+      - /home/yewon/job-interview-data/airflow/logs:/opt/airflow/logs
+      - /home/yewon/job-interview-data/airflow/plugins:/opt/airflow/plugins
+      - /home/yewon/job-interview-data/crawling/results:/opt/airflow/crawling/results
+      - /home/yewon/job-interview-data/crawling/employment_detail:/opt/airflow/crawling/employment_detail
+      - /home/yewon/job-interview-data/setting_object_storage:/opt/airflow/setting_object_storage
+      - /home/yewon/job-interview-data/crawling/logs:/opt/airflow/crawling/logs
+
+    networks:
+      - airflow_network
+
+  airflow_scheduler:
+    build: .
+    container_name: airflow_scheduler
+    user: root
+    command: bash -c "mkdir -p /opt/airflow/results /opt/airflow/crawling/employment_detail /opt/airflow/setting_object_storage /opt/airflow/logs \
+        && chmod -R 777 /opt/airflow \
+        && chmod -R 777 /usr/local/bin/ \
+        && airflow scheduler"
+    restart: unless-stopped
+    depends_on:
+      postgres_airflow:
+        condition: service_healthy
+      airflow_webserver:
+        condition: service_started
+    env_file:
+      - ../.env
+    environment:
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=${AIRFLOW__DATABASE__SQL_ALCHEMY_CONN}
+      - AIRFLOW__CORE__DAGS_FOLDER=/opt/airflow/dags
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__LOGGING__BASE_LOG_FOLDER=/opt/airflow/logs
+      - AIRFLOW__CORE__DEFAULT_TIMEZONE=Asia/Seoul
+
+    healthcheck:
+      test: ["CMD-SHELL", "airflow jobs check --job-type SchedulerJob"]
+      interval: 10s
+      retries: 5
+      start_period: 20s
+
+    volumes:
+      - /home/yewon/job-interview-data/airflow/dags:/opt/airflow/dags
+      - /home/yewon/job-interview-data/airflow/logs:/opt/airflow/logs
+      - /home/yewon/job-interview-data/airflow/plugins:/opt/airflow/plugins
+      - /home/yewon/job-interview-data/crawling/results:/opt/airflow/crawling/results
+      - /home/yewon/job-interview-data/crawling/employment_detail:/opt/airflow/crawling/employment_detail
+      - /home/yewon/job-interview-data/setting_object_storage:/opt/airflow/setting_object_storage
+      - /home/yewon/job-interview-data/crawling/logs:/opt/airflow/crawling/logs
+
+
+    networks:
+      - airflow_network
+
+  minio:
+    image: minio/minio:latest # dockerhub 사용
+    container_name: minio
+    restart: always
+    depends_on:
+      postgres_airflow:
+        condition: service_healthy
+      airflow_webserver:
+        condition: service_started
+      airflow_scheduler:
+        condition: service_started
+    ports:
+      - "9000:9000" # 파일 업로드 다운로드 포트. S3 API와 연결 가능 (외부 서버와 통신을 위한 개방)
+      - "9001:9001" # WebUI 사용 포트
+    env_file:
+      - ../.env # 경로 직접 지정
+    volumes:
+      - /home/yewon/job-interview-data/setting_object_storage/stand-alone/minio-data:/data # 윈도우의 minio-data폴더를 minio의 /data로 마운트
+    # server /data: MinIO 서버를 실행하면서, 컨테이너 내부의 /data 디렉토리를 스토리지 경로로 사용한다
+    # --console-adress: 웹 콘솔을 9001번 포트에서 실행
+    # --adress: 외부 통신을 9000번 포트에서 실행
+    command: server /data --address ":9000" --console-address ":9001"
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail http://localhost:9000/minio/health/ready || exit 1"]
+      interval: 10s
+      retries: 5
+      start_period: 10s
+    networks:
+      - airflow_network
+
+networks:
+  airflow_network:
+    name: airflow_network
+    driver: bridge

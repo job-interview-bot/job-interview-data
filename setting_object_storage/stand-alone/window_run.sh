@@ -1,5 +1,5 @@
 
-# step 1: WSL2의 현재 IP를 가져오고, 포트포워딩을 설정 
+# step 1: WSL2의 현재 IP를 가져오고, 포트포워딩을 설정
 
 # WSL2의 현재 IP 가져오기
 WSL_IP=$(wsl hostname -I | awk '{print $1}')
@@ -22,5 +22,3 @@ echo "Port forwarding updated for WSL2 IP: $WSL_IP"
 
 # Docker Compose 실행
 exec docker compose up -d
-
-

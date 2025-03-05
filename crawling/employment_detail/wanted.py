@@ -11,10 +11,33 @@ import pandas as pd
 import re
 from datetime import datetime, timedelta, timezone
 import sys, os
+import logging
 
 PAUSE_TIME = 1.5  # 대기 시간
 TRFIC_PAUSE_TIME = 30  # 트래픽 캡처 대기 시간
 KST = timezone(timedelta(hours=9))
+
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+log_dir = os.path.join(BASE_DIR, "logs/")
+if not os.path.exists(log_dir):
+    os.makedirs(log_dir, exist_ok=True)
+
+
+now = datetime.now(KST)
+today_str = now.strftime("%Y%m%d")
+
+log_file = os.path.join(log_dir, f'wanted_{today_str}_dag.log')
+# 기존 핸들러에 추가하거나 기본 설정 재구성
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(log_file),
+        logging.StreamHandler()
+    ]
+)
+
 
 
 if __name__ == "__main__":
@@ -23,7 +46,12 @@ if __name__ == "__main__":
     options = wd.ChromeOptions()
 
     # Chrome 옵션 설정
-    # options.add_argument('--headless')
+    # 필수 옵션 추가
+    options.add_argument('--headless')  # GUI 없이 실행
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
+    options.add_argument('--disable-gpu')
+    options.add_argument('--window-size=1920,1080')
     options.add_argument("--disable-notifications")  # 알림 비활성화
     options.add_experimental_option(
         "prefs",
@@ -44,7 +72,7 @@ if __name__ == "__main__":
     # 현재 크롤링 시작 시간
     now = datetime.now(KST)
     today_str = now.strftime("%Y%m%d")
-    print(f'## {now.strftime("%Y%m%d")} - 원티드 사이트 크롤링 시작 ##')
+    logging.info(f'## {now.strftime("%Y%m%d")} - 원티드 사이트 크롤링 시작 ##')
     time_24h_ago = now - timedelta(hours=24)
 
     # 무한 스크롤 대응
@@ -72,9 +100,8 @@ if __name__ == "__main__":
 
             # 스크롤을 아래로 내리기
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-
         except AssertionError as e:
-            print(f"[AssertionError]: {e}")
+            logging.error(f"[AssertionError] : {e}")
             continue  # 다음 아이템으로 넘어감
 
     # 채용공고 리스트
@@ -166,7 +193,7 @@ if __name__ == "__main__":
                 continue
 
         except Exception as e:
-            print(f"[{type(e).__name__}] item_id({item['채용사이트_공고id']}): {e}")
+            logging.error(f"[{type(e).__name__}] item_id({item['채용사이트_공고id']}): {e}")
             # print(e.with_traceback())
             continue  # 다음 아이템으로 넘어감
 
@@ -175,13 +202,11 @@ if __name__ == "__main__":
     recruits_result.drop(remove_idx, inplace=True)
 
     # 저장할 폴더 경로
-    folder_path = f"results/{today_str}"
+    folder_path = os.path.join(BASE_DIR, f'results/{today_str}')
     os.makedirs(folder_path, exist_ok=True)
 
     # CSV 파일 저장 (UTF-8 인코딩, 인덱스 없이)
-    recruits_result.to_csv(
-        f"{folder_path}/wanted_{today_str}.csv", index=False, encoding="utf-8"
-    )
-    print(f"## {folder_path}/wanted_{today_str}.csv 저장 완료")
+    recruits_result.to_csv(os.path.join(folder_path, f'wanted_{today_str}.csv'), index=False, encoding='utf-8')
+    logging.info(f"## {os.path.join(folder_path, f'wanted_{today_str}.csv')} 저장 완료")
 
     driver.close()

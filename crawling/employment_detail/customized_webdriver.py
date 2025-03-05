@@ -19,10 +19,12 @@ from selenium.webdriver.common.by import By
 
 from selenium.common.exceptions import TimeoutException
 from selenium.webdriver import ChromeOptions
+from selenium.webdriver.chrome.options import Options
 
 from typing import Optional, Union, List, Dict, Callable
 from selenium.webdriver.remote.webelement import WebElement
 from seleniumwire.request import Request, Response
+from selenium.webdriver.chrome.service import Service
 
 
 class DotDict(dict):
@@ -37,20 +39,43 @@ class DotDict(dict):
 
 class CustomizedDriver(wd_wire.Chrome):
     def __init__(self, *args, **kwargs):
-        """WebDriver 설정 및 인스턴스 생성"""
-        # Selenium webdriver 설정
-        driver_path = ChromeDriverManager().install()
+        """WebDriver 설정 및 인스턴스 생성
+        """
+        # Selenium webdriver 설정 - docker airflow
+        driver_path = "/usr/bin/chromedriver"
+        service = Service(executable_path=driver_path, log_path='/opt/airflow/logs/chromedriver.log')
 
-        # 윈도우에서 실행 시
+        # 버전 확인
+        print(f"ChromeDriver path: {driver_path}")
+        super().__init__(service=service, *args, **kwargs)
+
+        # driver_path = ChromeDriverManager().install()
+        
+        # 윈도우에서 실행 시 
         # correct_driver_path = os.path.join(os.path.dirname(driver_path), "chromedriver.exe") # 오류 출처 : https://private.tistory.com/178
         # super().__init__(*args, service=ChromeService(executable_path=correct_driver_path), **kwargs)
 
         # 맥에서 실행 시
-        super().__init__(
-            *args, service=ChromeService(executable_path=driver_path), **kwargs
-        )
+        # super().__init__(
+        #     *args, service=ChromeService(executable_path=driver_path), **kwargs
+        # )
+
+        # WSL 실행 시
+        # driver_path = "/home/yewon/job-interview-data/chrome_driver/chromedriver"
+        # super().__init__(*args, service=ChromeService(executable_path=driver_path), **kwargs)
+
+
+        
+        # super().__init__(
+        #     *args, service=ChromeService(executable_path=driver_path), **kwargs
+        # )
 
         # 네트워크 트래픽 캡처 범위 설정
+        self.scopes = [".*"]  # 일단 모든 네트워크 트래픽을 캡처하도록 설정
+
+    def find_element_one(
+        self, locator=By.CSS_SELECTOR, value: Optional[str] = None, timeout: int = 10
+    ) -> Optional[Callable[..., WebElement]]:
         self.scopes = [".*"]  # 일단 모든 네트워크 트래픽을 캡처하도록 설정
 
     def find_element_one(
@@ -64,6 +89,7 @@ class CustomizedDriver(wd_wire.Chrome):
 
         Returns:
             Optional[WebElement]:
+            Optional[WebElement]:
         """
         try:
             elem = WebDriverWait(self, timeout).until(
@@ -72,7 +98,9 @@ class CustomizedDriver(wd_wire.Chrome):
         except TimeoutException:
             return None
 
+
         return elem
+
 
     def find_element_all(
         self, locator=By.CSS_SELECTOR, value: Optional[str] = None, timeout: int = 10
@@ -89,7 +117,9 @@ class CustomizedDriver(wd_wire.Chrome):
         except TimeoutException:
             return []
 
+
         return elem
+
 
     def filter_network_log(self, pat="", **kwargs) -> Union[Request, DotDict]:
         """네트워크 트래픽 필터링 (단일)
